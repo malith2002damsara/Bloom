@@ -1,14 +1,10 @@
 @import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 body {
   font-family: 'Inter', sans-serif;
-}
-
-/* Custom responsive utilities */
-@media (max-width: 375px) {
-  .xs\:inline {
-    display: inline;
-  }
 }
 
 /* Custom styles for line clamping */

@@ -195,14 +195,12 @@ const ProductCard = ({ product }) => {
           <img 
             src={product.images && product.images.length > 0 ? product.images[0] : '/assets/images/placeholder.jpg'} 
             alt={product.name} 
-            className="absolute h-full w-full object-cover hover:scale-105 transition-transform duration-300"
+            className="absolute h-full w-full object-cover"
           />
-          {/* Mobile-first overlay on image */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300"></div>
         </div>
-        <div className="p-2 sm:p-3">
-          <h3 className="font-medium text-xs sm:text-sm mb-1 line-clamp-2 leading-tight">{product.name}</h3>
-          <p className="text-purple-600 font-semibold text-xs sm:text-sm mb-2">
+        <div className="p-3">
+          <h3 className="font-medium text-sm mb-1 line-clamp-2 leading-tight">{product.name}</h3>
+          <p className="text-purple-600 font-semibold text-sm mb-2">
             {availableSizes.length > 0 ? (
               `From Rs. ${Math.min(...availableSizes.map(s => s.price)).toFixed(2)}`
             ) : (
@@ -215,14 +213,14 @@ const ProductCard = ({ product }) => {
               className="flex-1 py-1.5 px-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded text-xs hover:from-pink-600 hover:to-purple-700 transition-colors flex items-center justify-center space-x-1"
             >
               <FiShoppingCart className="h-3 w-3" />
-              <span className="hidden xs:inline">Add</span>
+              <span>Add</span>
             </button>
             <button
               onClick={() => setShowQuickView(true)}
               className="flex-1 py-1.5 px-2 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 transition-colors border border-gray-200 flex items-center justify-center space-x-1"
             >
               <FiInfo className="h-3 w-3" />
-              <span className="hidden xs:inline">View</span>
+              <span>View</span>
             </button>
           </div>
         </div>
@@ -243,31 +241,35 @@ const ProductCard = ({ product }) => {
 
             {/* Modal Content */}
             <motion.div
-              className="fixed inset-0 flex items-center justify-center z-50 px-2 sm:px-4 py-2 sm:py-4"
+              className="fixed inset-0 flex items-center justify-center z-50 px-2 sm:px-4"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
             >
-              <div className="bg-white rounded-xl max-w-5xl w-full max-h-[98vh] sm:max-h-[95vh] overflow-hidden shadow-2xl border border-gray-100">
+              <div className="bg-white rounded-xl max-w-5xl w-full max-h-[95vh] overflow-hidden shadow-2xl border border-gray-100">
                 {/* Navigation Bar */}
-                <div className="bg-gradient-to-r from-purple-600 via-pink-500 to-purple-600 text-white px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between rounded-t-xl">
-                  <div className="flex items-center space-x-2 sm:space-x-3">
-                    <div className="w-6 h-6 sm:w-8 sm:h-8 bg-white/20 rounded-full flex items-center justify-center">
-                      <FiEye className="w-3 h-3 sm:w-4 sm:h-4" />
+                <div className="bg-gradient-to-r from-purple-600 via-pink-500 to-purple-600 text-white px-4 py-3 flex items-center justify-between rounded-t-xl">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                      <FiEye className="w-4 h-4" />
                     </div>
-                    <div className="min-w-0">
-                      <h1 className="font-semibold text-sm sm:text-lg truncate max-w-[150px] sm:max-w-xs md:max-w-md">
+                    <div>
+                      <h1 className="font-semibold text-lg truncate max-w-xs sm:max-w-md">
                         {product.name}
                       </h1>
-                      <p className="text-purple-100 text-xs hidden sm:block">Product Details</p>
+                      <p className="text-purple-100 text-xs">Product Details</p>
                     </div>
                   </div>
                   
-                  <div className="flex items-center space-x-1 sm:space-x-2">
+                  <div className="flex items-center space-x-2">
+                    {/* Wishlist Button
+                    <button className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all">
+                      <FiHeart size={16} />
+                    </button> */}
                     {/* Close Button */}
                     <button 
                       onClick={handleCloseModal} 
-                      className="p-1.5 sm:p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all"
+                      className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all"
                     >
                       <FiX size={16} />
                     </button>
@@ -275,41 +277,40 @@ const ProductCard = ({ product }) => {
                 </div>
 
                 {/* Scrollable Content */}
-                <div className="overflow-y-auto max-h-[calc(98vh-50px)] sm:max-h-[calc(95vh-60px)]">
+                <div className="overflow-y-auto max-h-[calc(95vh-60px)]">
                   {/* 3D Product Viewer Section */}
-                  <div className="relative h-48 sm:h-64 md:h-72 lg:h-80 bg-gradient-to-br from-purple-50 to-pink-50 overflow-hidden">
+                  <div className="relative h-64 sm:h-72 md:h-80 bg-gradient-to-br from-purple-50 to-pink-50 overflow-hidden">
                     {/* 3D Viewer Controls */}
-                    <div className="absolute top-2 sm:top-4 right-2 sm:right-4 z-10 flex space-x-1 sm:space-x-2">
+                    <div className="absolute top-4 right-4 z-10 flex space-x-2">
                       <button
                         onClick={toggle3DMode}
-                        className={`p-1.5 sm:p-2 rounded-lg backdrop-blur-sm border transition-all text-xs sm:text-sm ${
+                        className={`p-2 rounded-lg backdrop-blur-sm border transition-all ${
                           is3DMode 
                             ? 'bg-purple-600 text-white border-purple-600 shadow-lg' 
                             : 'bg-white/80 text-gray-700 border-gray-200 hover:bg-white'
                         }`}
                         title={is3DMode ? "Switch to 2D view" : "Switch to 3D view"}
                       >
-                        <FiMaximize size={14} />
+                        <FiMaximize size={16} />
                       </button>
                       {is3DMode && (
                         <button
                           onClick={resetRotation}
-                          className="p-1.5 sm:p-2 bg-white/80 text-gray-700 rounded-lg backdrop-blur-sm border border-gray-200 hover:bg-white transition-all"
+                          className="p-2 bg-white/80 text-gray-700 rounded-lg backdrop-blur-sm border border-gray-200 hover:bg-white transition-all"
                           title="Reset rotation"
                         >
-                          <FiRotateCw size={14} />
+                          <FiRotateCw size={16} />
                         </button>
                       )}
                     </div>
 
                     {/* 3D Instructions */}
                     {is3DMode && (
-                      <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 z-10">
-                        <div className="bg-black/60 text-white px-2 sm:px-3 py-1 sm:py-2 rounded-lg backdrop-blur-sm">
+                      <div className="absolute bottom-4 left-4 z-10">
+                        <div className="bg-black/60 text-white px-3 py-2 rounded-lg backdrop-blur-sm">
                           <div className="flex items-center text-xs">
                             <FiMove className="mr-1" />
-                            <span className="hidden sm:inline">Drag to rotate • Click reset to center</span>
-                            <span className="sm:hidden">Drag to rotate</span>
+                            <span>Drag to rotate • Click reset to center</span>
                           </div>
                         </div>
                       </div>
@@ -317,27 +318,36 @@ const ProductCard = ({ product }) => {
 
                     {/* Size Dimensions Display in 3D View */}
                     {is3DMode && selectedSize && availableSizes.length > 0 && (
-                      <div className="absolute top-2 sm:top-4 left-2 sm:left-4 z-10">
+                      <div className="absolute top-4 left-4 z-10">
                         {(() => {
                           const currentSize = availableSizes.find(size => size.id === selectedSize);
                           if (currentSize?.dimensions) {
                             return (
-                              <div className="bg-white/90 backdrop-blur-sm rounded-lg p-2 sm:p-3 border border-gray-200 max-w-[150px] sm:max-w-none">
-                                <h4 className="text-xs font-semibold text-gray-800 mb-1 sm:mb-2">
-                                  <span className="hidden sm:inline">Dimensions ({currentSize.name})</span>
-                                  <span className="sm:hidden">{currentSize.name}</span>
-                                </h4>
-                                <div className="space-y-0.5 sm:space-y-1 text-xs text-gray-700">
+                              <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 border border-gray-200">
+                                <h4 className="text-xs font-semibold text-gray-800 mb-2">Dimensions ({currentSize.name})</h4>
+                                <div className="space-y-1 text-xs text-gray-700">
                                   {currentSize.dimensions.height > 0 && (
                                     <div className="flex items-center justify-between">
-                                      <span className="text-xs">H:</span>
-                                      <span className="font-medium text-xs">{currentSize.dimensions.height}cm</span>
+                                      <span>Height:</span>
+                                      <span className="font-medium">{currentSize.dimensions.height} cm</span>
                                     </div>
                                   )}
                                   {currentSize.dimensions.width > 0 && (
                                     <div className="flex items-center justify-between">
-                                      <span className="text-xs">W:</span>
-                                      <span className="font-medium text-xs">{currentSize.dimensions.width}cm</span>
+                                      <span>Width:</span>
+                                      <span className="font-medium">{currentSize.dimensions.width} cm</span>
+                                    </div>
+                                  )}
+                                  {currentSize.dimensions.length > 0 && (
+                                    <div className="flex items-center justify-between">
+                                      <span>Length:</span>
+                                      <span className="font-medium">{currentSize.dimensions.length} cm</span>
+                                    </div>
+                                  )}
+                                  {currentSize.dimensions.depth > 0 && (
+                                    <div className="flex items-center justify-between">
+                                      <span>Depth:</span>
+                                      <span className="font-medium">{currentSize.dimensions.depth} cm</span>
                                     </div>
                                   )}
                                 </div>
@@ -379,8 +389,8 @@ const ProductCard = ({ product }) => {
                             is3DMode ? 'drop-shadow-2xl' : ''
                           }`}
                           style={{
-                            maxWidth: is3DMode ? '200px' : '100%',
-                            maxHeight: is3DMode ? '200px' : '100%',
+                            maxWidth: is3DMode ? '300px' : '100%',
+                            maxHeight: is3DMode ? '300px' : '100%',
                             filter: is3DMode ? 'drop-shadow(0 25px 50px rgba(0, 0, 0, 0.3))' : 'none'
                           }}
                           draggable={false}
@@ -415,13 +425,13 @@ const ProductCard = ({ product }) => {
                   </div>
 
                   {/* Product Details Section */}
-                  <div className="px-2 sm:px-3 md:px-4 lg:px-6 py-3 sm:py-4">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
+                  <div className="px-3 sm:px-4 md:px-6 py-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
                       {/* Left Column - Product Info & Details */}
-                      <div className="space-y-3 sm:space-y-4">
+                      <div className="space-y-4">
                         {/* Category Badge & Basic Info */}
-                        <div className="space-y-2 sm:space-y-3">
-                          <span className={`inline-block px-2 sm:px-3 py-1 text-xs font-medium rounded-full ${
+                        <div className="space-y-3">
+                          <span className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${
                             product.category === 'fresh' ? 'bg-green-100 text-green-800' :
                             product.category === 'artificial' ? 'bg-blue-100 text-blue-800' :
                             product.category === 'bears' ? 'bg-purple-100 text-purple-800' :
@@ -606,12 +616,12 @@ const ProductCard = ({ product }) => {
                       </div>
 
                       {/* Right Column - Options & Actions */}
-                      <div className="space-y-3 sm:space-y-4">
+                      <div className="space-y-4">
                         {/* Price Section */}
-                        <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-3 sm:p-4 border border-purple-100">
-                          <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-2">
-                            <span className="text-xl sm:text-2xl font-bold text-purple-600">Rs. {getTotalPrice().toFixed(2)}</span>
-                            <span className="text-xs sm:text-sm text-gray-500 line-through">Rs. {(getTotalPrice() * 1.2).toFixed(2)}</span>
+                        <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-100">
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <span className="text-2xl font-bold text-purple-600">Rs. {getTotalPrice().toFixed(2)}</span>
+                            <span className="text-sm text-gray-500 line-through">Rs. {(getTotalPrice() * 1.2).toFixed(2)}</span>
                             <span className="bg-red-100 text-red-800 text-xs font-medium px-2 py-1 rounded-full">
                               Save 20%
                             </span>
@@ -630,22 +640,25 @@ const ProductCard = ({ product }) => {
                               <FiPackage className="mr-1 h-4 w-4" />
                               Sizes
                             </h3>
-                            <div className="space-y-2 sm:space-y-3">
+                            <div className="space-y-3">
                               {availableSizes.map((size) => (
                                 <button
                                   key={size.id}
                                   onClick={() => setSelectedSize(size.id)}
-                                  className={`w-full border rounded-lg p-2 sm:p-3 text-left transition-all ${
+                                  className={`w-full border rounded-lg p-3 text-left transition-all ${
                                     selectedSize === size.id
                                       ? 'border-purple-500 bg-purple-50 text-purple-600 shadow-md'
                                       : 'border-gray-200 hover:border-purple-300 hover:bg-gray-50'
                                   }`}
                                 >
                                   {/* Size Header */}
-                                  <div className="flex justify-between items-center mb-1 sm:mb-2">
+                                  <div className="flex justify-between items-center mb-2">
                                     <div className="font-medium text-sm">{size.name}</div>
                                     <div className="font-semibold text-purple-600 text-sm">Rs. {size.price.toFixed(2)}</div>
                                   </div>
+                                  
+                                  {/* Enhanced Dimensions Display */}
+                                  
                                   
                                   {/* Additional Details */}
                                   <div className="flex items-center justify-between text-xs text-gray-600">
@@ -654,7 +667,7 @@ const ProductCard = ({ product }) => {
                                         {size.flowerCount} flowers
                                       </span>
                                     )}
-                                    {size.dimensions && (
+                                    {!size.dimensions && size.dimensions && (
                                       <span className="text-right font-medium">
                                         {size.dimensions.height > 0 && `${size.dimensions.height}cm `}
                                         {size.dimensions.width > 0 && `× ${size.dimensions.width}cm`}
@@ -668,22 +681,22 @@ const ProductCard = ({ product }) => {
                         )}
 
                         {/* Quantity & Add to Cart - Combined */}
-                        <div className="bg-white border border-gray-200 rounded-xl p-3 sm:p-4">
+                        <div className="bg-white border border-gray-200 rounded-xl p-4">
                           <div className="flex items-center justify-between mb-3">
                             <h3 className="text-sm font-semibold text-gray-900">Quantity</h3>
                             <div className="flex items-center space-x-2">
                               <button 
                                 onClick={() => handleQuantityChange(-1)}
-                                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors text-sm"
+                                className="w-8 h-8 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors"
                               >
                                 -
                               </button>
-                              <span className="w-10 h-7 sm:w-12 sm:h-8 rounded-lg border border-gray-300 flex items-center justify-center font-medium text-sm">
+                              <span className="w-12 h-8 rounded-lg border border-gray-300 flex items-center justify-center font-medium text-sm">
                                 {quantity}
                               </span>
                               <button 
                                 onClick={() => handleQuantityChange(1)}
-                                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors text-sm"
+                                className="w-8 h-8 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors"
                               >
                                 +
                               </button>
@@ -693,17 +706,16 @@ const ProductCard = ({ product }) => {
                           {/* Add to Cart Button */}
                           <button
                             onClick={handleAddToCart}
-                            className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-pink-700 transition-all flex items-center justify-center space-x-2 shadow-md hover:shadow-lg text-sm"
+                            className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-pink-700 transition-all flex items-center justify-center space-x-2 shadow-md hover:shadow-lg"
                           >
                             <FiShoppingCart className="h-4 w-4" />
-                            <span className="hidden sm:inline">Add to Cart - Rs. {getTotalPrice().toFixed(2)}</span>
-                            <span className="sm:hidden">Add - Rs. {getTotalPrice().toFixed(2)}</span>
+                            <span>Add to Cart - Rs. {getTotalPrice().toFixed(2)}</span>
                           </button>
                         </div>
 
                         {/* Service Info - Compact */}
-                        <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
-                          <div className="grid grid-cols-1 gap-1.5 sm:gap-2">
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <div className="grid grid-cols-1 gap-2">
                             <div className="flex items-center text-xs text-gray-700">
                               <FiTruck className="h-3 w-3 mr-2 text-green-600 flex-shrink-0" />
                               <span>Free delivery over Rs. 300</span>
