@@ -1,4 +1,4 @@
-const API_BASE_URL = `${import.meta.env.VITE_BACKEND_URL}/api`;
+const API_BASE_URL = `${import.meta.env.VITE_BACKEND_URL || 'https://bloombackend.vercel.app'}/api`;
 
 class ApiService {
   constructor() {
@@ -45,6 +45,12 @@ class ApiService {
       const response = await fetch(url, config);
       console.log('API response status:', response.status);
       
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response: ${response.status} ${response.statusText}`);
+      }
+      
       const data = await response.json();
       console.log('API response data:', data);
 
@@ -60,6 +66,12 @@ class ApiService {
       return data;
     } catch (error) {
       console.error('API request failed:', error);
+      
+      // Provide more specific error messages
+      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        throw new Error('Unable to connect to server. Please check your internet connection or try again later.');
+      }
+      
       throw error;
     }
   }

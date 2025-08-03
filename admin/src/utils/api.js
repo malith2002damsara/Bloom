@@ -1,4 +1,4 @@
-const API_BASE_URL = `${import.meta.env.VITE_BACKEND_URL}/api`;
+const API_BASE_URL = `${import.meta.env.VITE_BACKEND_URL || 'https://bloombackend.vercel.app'}/api`;
 
 class AdminApiService {
   constructor() {
