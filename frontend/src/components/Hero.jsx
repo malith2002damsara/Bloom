@@ -1,21 +1,20 @@
 import React from 'react';
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+
 const Hero = () => {
-  const navigate = useNavigate();
   return (
-    <section className="bg-gradient-to-br from-pink-50 via-blue-50 to-green-50 py-16 md:py-24">
-      <div className="container mx-auto px-4">
-        <div className="flex flex-col md:flex-row items-center">
+    <section className="bg-gradient-to-br from-pink-50 via-blue-50 to-green-50 py-8 sm:py-12 md:py-16 lg:py-24">
+      <div className="container mx-auto px-3 sm:px-4 md:px-6">
+        <div className="flex flex-col lg:flex-row items-center">
           {/* Image Section - Left Side */}
           <motion.div 
-            className="md:w-1/2 mb-8 md:mb-0 md:pr-8"
+            className="w-full lg:w-1/2 mb-6 sm:mb-8 lg:mb-0 lg:pr-8"
             initial={{ opacity: 0, x: -50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8 }}
           >
-            <div className="bg-gradient-to-br from-pink-200 to-blue-200 rounded-xl h-64 md:h-96 w-full flex items-center justify-center overflow-hidden">
+            <div className="bg-gradient-to-br from-pink-200 to-blue-200 rounded-xl h-48 sm:h-64 md:h-80 lg:h-96 w-full flex items-center justify-center overflow-hidden">
               <motion.img 
                 src="/grad-hero.png" 
                 alt="Graduation Bouquet"
@@ -29,35 +28,18 @@ const Hero = () => {
           
           {/* Content Section - Right Side */}
           <motion.div 
-            className="md:w-1/2 md:pl-8"
+            className="w-full lg:w-1/2 lg:pl-8 text-center lg:text-left"
             initial={{ opacity: 0, x: 50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
           >
-            <h1 className="text-4xl md:text-5xl font-bold text-gray-800 mb-4">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-800 mb-3 sm:mb-4">
               Celebrate Your <span className="text-pink-600">Achievement</span> in Bloom
             </h1>
-            <p className="text-lg text-gray-600 mb-8">
+            <p className="text-sm sm:text-base lg:text-lg text-gray-600 mb-6 sm:mb-8 leading-relaxed">
               Custom bouquets and teddy bears designed specially for your university convocation. 
               Make your graduation day unforgettable!
             </p>
-            {/* <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
-              <motion.button 
-                className="bg-gradient-to-r from-pink-500 to-blue-500 hover:from-pink-600 hover:to-blue-600 text-white px-6 py-3 rounded-lg font-medium shadow-lg"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                Customize Your Bouquet
-              </motion.button> */}
-              {/* <motion.button 
-                className="border-2 border-green-500 text-green-600 hover:bg-green-50 px-6 py-3 rounded-lg font-medium"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-               onClick={() => navigate('/collection')} // Add this onClick handler
-          >
-            Shop Collections
-              </motion.button>
-            </div> */}
           </motion.div>
         </div>
       </div>

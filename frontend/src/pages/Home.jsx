@@ -11,16 +11,14 @@ import Footer from '../components/Footer'
 
 const Home = () => {
   return (
-    <div className="">
-      
-      <main className="flex-grow mt-[4rem] md:mt-[4rem]">
+    <div className="min-h-screen">
+      <main className="flex-grow pt-16 sm:pt-16 md:pt-16">
         <Navbar />
         <Hero />
         <ProductGrid />
         {/* <Customizer /> */}
         <Features />
         <Testimonials />
-       
       </main>
       <Footer />
     </div>

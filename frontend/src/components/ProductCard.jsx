@@ -415,13 +415,13 @@ const ProductCard = ({ product }) => {
                   </div>
 
                   {/* Product Details Section */}
-                  <div className="px-3 sm:px-4 md:px-6 py-4">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+                  <div className="px-2 sm:px-3 md:px-4 lg:px-6 py-3 sm:py-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
                       {/* Left Column - Product Info & Details */}
-                      <div className="space-y-4">
+                      <div className="space-y-3 sm:space-y-4">
                         {/* Category Badge & Basic Info */}
-                        <div className="space-y-3">
-                          <span className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${
+                        <div className="space-y-2 sm:space-y-3">
+                          <span className={`inline-block px-2 sm:px-3 py-1 text-xs font-medium rounded-full ${
                             product.category === 'fresh' ? 'bg-green-100 text-green-800' :
                             product.category === 'artificial' ? 'bg-blue-100 text-blue-800' :
                             product.category === 'bears' ? 'bg-purple-100 text-purple-800' :
@@ -606,12 +606,12 @@ const ProductCard = ({ product }) => {
                       </div>
 
                       {/* Right Column - Options & Actions */}
-                      <div className="space-y-4">
+                      <div className="space-y-3 sm:space-y-4">
                         {/* Price Section */}
-                        <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-100">
-                          <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <span className="text-2xl font-bold text-purple-600">Rs. {getTotalPrice().toFixed(2)}</span>
-                            <span className="text-sm text-gray-500 line-through">Rs. {(getTotalPrice() * 1.2).toFixed(2)}</span>
+                        <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-3 sm:p-4 border border-purple-100">
+                          <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-2">
+                            <span className="text-xl sm:text-2xl font-bold text-purple-600">Rs. {getTotalPrice().toFixed(2)}</span>
+                            <span className="text-xs sm:text-sm text-gray-500 line-through">Rs. {(getTotalPrice() * 1.2).toFixed(2)}</span>
                             <span className="bg-red-100 text-red-800 text-xs font-medium px-2 py-1 rounded-full">
                               Save 20%
                             </span>
@@ -630,25 +630,22 @@ const ProductCard = ({ product }) => {
                               <FiPackage className="mr-1 h-4 w-4" />
                               Sizes
                             </h3>
-                            <div className="space-y-3">
+                            <div className="space-y-2 sm:space-y-3">
                               {availableSizes.map((size) => (
                                 <button
                                   key={size.id}
                                   onClick={() => setSelectedSize(size.id)}
-                                  className={`w-full border rounded-lg p-3 text-left transition-all ${
+                                  className={`w-full border rounded-lg p-2 sm:p-3 text-left transition-all ${
                                     selectedSize === size.id
                                       ? 'border-purple-500 bg-purple-50 text-purple-600 shadow-md'
                                       : 'border-gray-200 hover:border-purple-300 hover:bg-gray-50'
                                   }`}
                                 >
                                   {/* Size Header */}
-                                  <div className="flex justify-between items-center mb-2">
+                                  <div className="flex justify-between items-center mb-1 sm:mb-2">
                                     <div className="font-medium text-sm">{size.name}</div>
                                     <div className="font-semibold text-purple-600 text-sm">Rs. {size.price.toFixed(2)}</div>
                                   </div>
-                                  
-                                  {/* Enhanced Dimensions Display */}
-                                  
                                   
                                   {/* Additional Details */}
                                   <div className="flex items-center justify-between text-xs text-gray-600">
@@ -657,7 +654,7 @@ const ProductCard = ({ product }) => {
                                         {size.flowerCount} flowers
                                       </span>
                                     )}
-                                    {!size.dimensions && size.dimensions && (
+                                    {size.dimensions && (
                                       <span className="text-right font-medium">
                                         {size.dimensions.height > 0 && `${size.dimensions.height}cm `}
                                         {size.dimensions.width > 0 && `× ${size.dimensions.width}cm`}
@@ -671,22 +668,22 @@ const ProductCard = ({ product }) => {
                         )}
 
                         {/* Quantity & Add to Cart - Combined */}
-                        <div className="bg-white border border-gray-200 rounded-xl p-4">
+                        <div className="bg-white border border-gray-200 rounded-xl p-3 sm:p-4">
                           <div className="flex items-center justify-between mb-3">
                             <h3 className="text-sm font-semibold text-gray-900">Quantity</h3>
                             <div className="flex items-center space-x-2">
                               <button 
                                 onClick={() => handleQuantityChange(-1)}
-                                className="w-8 h-8 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors text-sm"
                               >
                                 -
                               </button>
-                              <span className="w-12 h-8 rounded-lg border border-gray-300 flex items-center justify-center font-medium text-sm">
+                              <span className="w-10 h-7 sm:w-12 sm:h-8 rounded-lg border border-gray-300 flex items-center justify-center font-medium text-sm">
                                 {quantity}
                               </span>
                               <button 
                                 onClick={() => handleQuantityChange(1)}
-                                className="w-8 h-8 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors text-sm"
                               >
                                 +
                               </button>
@@ -696,16 +693,17 @@ const ProductCard = ({ product }) => {
                           {/* Add to Cart Button */}
                           <button
                             onClick={handleAddToCart}
-                            className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-pink-700 transition-all flex items-center justify-center space-x-2 shadow-md hover:shadow-lg"
+                            className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-pink-700 transition-all flex items-center justify-center space-x-2 shadow-md hover:shadow-lg text-sm"
                           >
                             <FiShoppingCart className="h-4 w-4" />
-                            <span>Add to Cart - Rs. {getTotalPrice().toFixed(2)}</span>
+                            <span className="hidden sm:inline">Add to Cart - Rs. {getTotalPrice().toFixed(2)}</span>
+                            <span className="sm:hidden">Add - Rs. {getTotalPrice().toFixed(2)}</span>
                           </button>
                         </div>
 
                         {/* Service Info - Compact */}
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          <div className="grid grid-cols-1 gap-2">
+                        <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
+                          <div className="grid grid-cols-1 gap-1.5 sm:gap-2">
                             <div className="flex items-center text-xs text-gray-700">
                               <FiTruck className="h-3 w-3 mr-2 text-green-600 flex-shrink-0" />
                               <span>Free delivery over Rs. 300</span>
