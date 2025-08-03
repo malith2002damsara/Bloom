@@ -218,7 +218,7 @@ const Navbar = () => {
   return (
     <>
     <motion.header
-      className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-green-500 to-pink-500 shadow-lg w-full h-16"
+      className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-green-500 to-pink-500 shadow-lg w-full h-16 sm:h-16 md:h-16"
       initial={{ y: -100, opacity: 0 }}
       animate={{
         y: hidden ? -100 : 0,
@@ -240,9 +240,9 @@ const Navbar = () => {
         ))}
       </div>
 
-      <div className="relative z-10 mx-auto px-4 sm:px-6 h-full w-full max-w-7xl">
+      <div className="relative z-10 mx-auto px-2 sm:px-4 md:px-6 h-full w-full max-w-7xl">
         {/* Desktop Navigation */}
-        <div className="hidden md:flex items-center justify-between h-full w-full">
+        <div className="hidden lg:flex items-center justify-between h-full w-full">
           {/* Logo */}
           <Link to="/" className="flex items-center">
             <motion.div
@@ -251,7 +251,7 @@ const Navbar = () => {
               className="flex items-center"
             >
               <motion.span
-                className="text-2xl sm:text-3xl font-bold bg-white text-green-600 px-3 py-1 rounded-lg mr-1 shadow-md"
+                className="text-xl sm:text-2xl md:text-3xl font-bold bg-white text-green-600 px-2 sm:px-3 py-1 rounded-lg mr-1 shadow-md"
                 initial={{ rotate: -5 }}
                 animate={{ rotate: 0 }}
                 transition={{ type: 'spring' }}
@@ -259,7 +259,7 @@ const Navbar = () => {
                 Bloom
               </motion.span>
               <motion.span
-                className="text-2xl sm:text-3xl font-bold text-white"
+                className="text-xl sm:text-2xl md:text-3xl font-bold text-white"
                 initial={{ rotate: 5 }}
                 animate={{ rotate: 0 }}
                 transition={{ type: 'spring' }}
@@ -276,12 +276,12 @@ const Navbar = () => {
             animate={{ opacity: hidden ? 0 : 1 }}
             transition={{ delay: 0.4 }}
           >
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 xl:space-x-4">
               {mainLinks.map((link, index) => (
                 <Link to={link.path} key={link.name}>
                   <motion.div
-                    className={`px-4 py-2 rounded-full text-gray-800 font-medium bg-gradient-to-r ${link.color} 
-                              shadow-sm hover:shadow-md flex items-center space-x-2 transition-all duration-300 text-sm sm:text-base`}
+                    className={`px-2 xl:px-4 py-2 rounded-full text-gray-800 font-medium bg-gradient-to-r ${link.color} 
+                              shadow-sm hover:shadow-md flex items-center space-x-1 xl:space-x-2 transition-all duration-300 text-xs sm:text-sm xl:text-base`}
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{
@@ -297,8 +297,8 @@ const Navbar = () => {
                     }}
                     whileTap={{ scale: 0.98 }}
                   >
-                    {link.icon}
-                    <span>{link.name}</span>
+                    <span className="text-sm xl:text-base">{link.icon}</span>
+                    <span className="hidden xl:inline">{link.name}</span>
                   </motion.div>
                 </Link>
               ))}
@@ -310,8 +310,8 @@ const Navbar = () => {
           </div>
         </div>
 
-        {/* Mobile Navigation */}
-        <div className="flex items-center justify-between h-full w-11/12 md:hidden">
+        {/* Mobile and Tablet Navigation */}
+        <div className="flex items-center justify-between h-full w-full lg:hidden px-1 sm:px-2">
           <Link to="/" className="flex items-center">
             <motion.div
               whileHover={{ scale: 1.05 }}
@@ -319,7 +319,7 @@ const Navbar = () => {
               className="flex items-center"
             >
               <motion.span
-                className="text-2xl sm:text-3xl font-bold bg-white text-green-600 px-3 py-1 rounded-lg mr-1 shadow-md"
+                className="text-lg sm:text-xl md:text-2xl font-bold bg-white text-green-600 px-2 sm:px-3 py-1 rounded-lg mr-1 shadow-md"
                 initial={{ rotate: -5 }}
                 animate={{ rotate: 0 }}
                 transition={{ type: 'spring' }}
@@ -327,7 +327,7 @@ const Navbar = () => {
                 Bloom
               </motion.span>
               <motion.span
-                className="text-2xl sm:text-3xl font-bold text-white"
+                className="text-lg sm:text-xl md:text-2xl font-bold text-white"
                 initial={{ rotate: 5 }}
                 animate={{ rotate: 0 }}
                 transition={{ type: 'spring' }}
@@ -337,16 +337,16 @@ const Navbar = () => {
             </motion.div>
           </Link>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1 sm:space-x-2">
             <UserIcons isMobile />
 
             <motion.button
               onClick={() => setIsOpen(!isOpen)}
-              className="p-2 rounded-full bg-gradient-to-r from-pink-400 to-blue-500 text-white shadow-md md:hidden"
+              className="p-2 rounded-full bg-gradient-to-r from-pink-400 to-blue-500 text-white shadow-md"
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
             >
-              {isOpen ? <FiX size={20} /> : <FiMenu size={20} />}
+              {isOpen ? <FiX size={18} /> : <FiMenu size={18} />}
             </motion.button>
           </div>
         </div>
@@ -359,9 +359,9 @@ const Navbar = () => {
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.3 }}
-              className="md:hidden overflow-hidden absolute top-16 left-0 right-0"
+              className="lg:hidden overflow-hidden absolute top-16 left-0 right-0 mx-2 sm:mx-4"
             >
-              <div className="flex flex-col space-y-2 px-4 py-3 bg-white/90 backdrop-blur-sm rounded-b-lg shadow-lg">
+              <div className="flex flex-col space-y-2 px-3 sm:px-4 py-3 bg-white/95 backdrop-blur-sm rounded-b-xl shadow-xl border border-gray-100">
                 {mainLinks.map((link, index) => (
                   <Link 
                     to={link.path} 
@@ -369,8 +369,8 @@ const Navbar = () => {
                     onClick={() => setIsOpen(false)}
                   >
                     <motion.div
-                      className={`px-4 py-3 rounded-lg ${link.mobileColor} text-gray-800 font-medium
-                                flex items-center space-x-3 shadow-sm`}
+                      className={`px-4 py-3 rounded-xl ${link.mobileColor} text-gray-800 font-medium
+                                flex items-center space-x-3 shadow-sm hover:shadow-md transition-all`}
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{
@@ -380,13 +380,11 @@ const Navbar = () => {
                       }}
                       whileTap={{ scale: 0.95 }}
                     >
-                      {link.icon}
-                      <span>{link.name}</span>
+                      <span className="text-lg">{link.icon}</span>
+                      <span className="text-base font-semibold">{link.name}</span>
                     </motion.div>
                   </Link>
                 ))}
-                
-                
               </div>
             </motion.div>
           )}
