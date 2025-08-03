@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test</title>
+</head>
+<body>
+    <h1>API Connection Test</h1>
+    <button onclick="testAPI()">Test Registration API</button>
+    <div id="result"></div>
+
+    <script>
+        async function testAPI() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing...';
+            
+            try {
+                const response = await fetch(`${import.meta.env?.VITE_BACKEND_URL || 'http://localhost:5000'}/api/auth/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name: 'Test User Frontend',
+                        email: 'frontend@test.com',
+                        phone: '1234567890',
+                        password: 'testpass123'
+                    })
+                });
+
+                const data = await response.json();
+                
+                console.log('Response status:', response.status);
+                console.log('Response data:', data);
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `<div style="color: green;">SUCCESS: ${JSON.stringify(data)}</div>`;
+                } else {
+                    resultDiv.innerHTML = `<div style="color: red;">ERROR: ${JSON.stringify(data)}</div>`;
+                }
+            } catch (error) {
+                console.error('Test error:', error);
+                resultDiv.innerHTML = `<div style="color: red;">NETWORK ERROR: ${error.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>
