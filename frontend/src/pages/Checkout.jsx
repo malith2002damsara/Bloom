@@ -91,7 +91,7 @@ const Checkout = () => {
           name: item.name,
           price: item.price,
           quantity: item.quantity,
-          image: item.image || '/api/placeholder/100/100'
+          image: item.image || (item.images && item.images.length > 0 ? item.images[0] : null) || '/assets/images/placeholder.jpg'
         })),
         customerInfo: {
           name: customerInfo.name.trim(),
@@ -327,9 +327,12 @@ const Checkout = () => {
                   <div key={item.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-xl">
                     <div className="w-16 h-16 bg-white rounded-xl overflow-hidden shadow-sm">
                       <img 
-                        src={item.image} 
+                        src={item.image || (item.images && item.images.length > 0 ? item.images[0] : null) || '/assets/images/placeholder.jpg'} 
                         alt={item.name} 
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.src = '/assets/images/placeholder.jpg';
+                        }}
                       />
                     </div>
                     <div className="flex-1 min-w-0">

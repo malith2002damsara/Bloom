@@ -115,7 +115,7 @@ const ProductGrid = ({ isCollectionPage = false, maxProducts = null }) => {
           transition={{ duration: 0.5 }}
           viewport={{ once: true }}
         >
-          {['all', 'fresh', 'artificial', 'bears'].map((category) => (
+          {['all', 'fresh','artificial','mixed','bears'].map((category) => (
             <motion.button
               key={category}
               onClick={() => setActiveCategory(category)}
@@ -124,6 +124,7 @@ const ProductGrid = ({ isCollectionPage = false, maxProducts = null }) => {
                   ? category === 'all' ? 'bg-gray-800 text-white' 
                     : category === 'fresh' ? 'bg-pink-500 text-white' 
                     : category === 'artificial' ? 'bg-blue-500 text-white' 
+                    : category === 'mixed' ? 'bg-orange-500 text-white' 
                     : category === 'bears' ? 'bg-green-500 text-white' 
                     : 'bg-purple-500 text-white'
                   : 'bg-white text-gray-700 hover:bg-gray-100'
@@ -137,6 +138,8 @@ const ProductGrid = ({ isCollectionPage = false, maxProducts = null }) => {
             >
               {category === 'bears' ? 'Graduation Bears' : 
                category === 'all' ? 'All' : 
+               category === 'fresh & artificial' ? 'Fresh & Artificial' :
+               category === 'mixed' ? 'Fresh & Artificial' :
                `${category.charAt(0).toUpperCase() + category.slice(1)}`}
             </motion.button>
           ))}
@@ -164,7 +167,7 @@ const ProductGrid = ({ isCollectionPage = false, maxProducts = null }) => {
             className={`grid gap-3 sm:gap-4 ${
               isCollectionPage 
                 ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5' 
-                : 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6'
+                : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-5'
             }`}
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}

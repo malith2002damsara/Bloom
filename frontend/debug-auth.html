@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Authentication</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug-info { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e9; color: #2e7d32; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Authentication Debug Tool</h1>
+    
+    <div class="debug-info">
+        <h3>Current localStorage State:</h3>
+        <div id="localStorage-info"></div>
+    </div>
+
+    <div class="debug-info">
+        <h3>Test API Connection:</h3>
+        <button onclick="testConnection()">Test Connection</button>
+        <button onclick="testAuth()">Test Auth Endpoint</button>
+        <button onclick="clearStorage()">Clear Storage</button>
+        <div id="api-results"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:5000/api';
+        
+        function displayLocalStorage() {
+            const token = localStorage.getItem('token');
+            const user = localStorage.getItem('user');
+            
+            document.getElementById('localStorage-info').innerHTML = `
+                <p><strong>Token:</strong> ${token ? token.substring(0, 50) + '...' : 'Not found'}</p>
+                <p><strong>User:</strong> ${user ? user : 'Not found'}</p>
+                <p><strong>Token Length:</strong> ${token ? token.length : 0}</p>
+            `;
+        }
+
+        async function testConnection() {
+            try {
+                const response = await fetch(`${API_BASE_URL.replace('/api', '')}`);
+                const data = await response.json();
+                document.getElementById('api-results').innerHTML = `
+                    <div class="success">
+                        <p><strong>Server Connection:</strong> ✅ Connected</p>
+                        <p><strong>Response:</strong> ${JSON.stringify(data)}</p>
+                    </div>
+                `;
+            } catch (error) {
+                document.getElementById('api-results').innerHTML = `
+                    <div class="error">
+                        <p><strong>Server Connection:</strong> ❌ Failed</p>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function testAuth() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                document.getElementById('api-results').innerHTML = `
+                    <div class="error">
+                        <p><strong>Auth Test:</strong> ❌ No token found</p>
+                    </div>
+                `;
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/orders`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('api-results').innerHTML = `
+                        <div class="success">
+                            <p><strong>Auth Test:</strong> ✅ Token Valid</p>
+                            <p><strong>Response:</strong> ${JSON.stringify(data, null, 2)}</p>
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('api-results').innerHTML = `
+                        <div class="error">
+                            <p><strong>Auth Test:</strong> ❌ Token Invalid</p>
+                            <p><strong>Status:</strong> ${response.status}</p>
+                            <p><strong>Response:</strong> ${JSON.stringify(data, null, 2)}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('api-results').innerHTML = `
+                    <div class="error">
+                        <p><strong>Auth Test:</strong> ❌ Request Failed</p>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function clearStorage() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            displayLocalStorage();
+            document.getElementById('api-results').innerHTML = `
+                <div class="success">
+                    <p><strong>Storage Cleared:</strong> ✅ localStorage has been cleared</p>
+                </div>
+            `;
+        }
+
+        // Initialize
+        displayLocalStorage();
+    </script>
+</body>
+</html>

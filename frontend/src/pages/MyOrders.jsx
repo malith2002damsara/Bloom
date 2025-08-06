@@ -16,7 +16,14 @@ import {
   FiSearch,
   FiFilter,
   FiUser,
-  FiMapPin
+  FiMapPin,
+  FiEye,
+  FiChevronDown,
+  FiChevronUp,
+  FiInfo,
+  FiStar,
+  FiHeart,
+  FiCamera
 } from 'react-icons/fi';
 
 const MyOrders = () => {
@@ -27,6 +34,11 @@ const MyOrders = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
+  const [expandedOrders, setExpandedOrders] = useState(new Set());
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [isLoadingProductDetails, setIsLoadingProductDetails] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -35,6 +47,25 @@ const MyOrders = () => {
       setLoading(false);
     }
   }, [isAuthenticated]);
+
+  // Handle Escape key to close modal
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && isModalOpen) {
+        closeModal();
+      }
+    };
+
+    if (isModalOpen) {
+      document.addEventListener('keydown', handleEscape);
+      document.body.style.overflow = 'hidden'; // Prevent background scrolling
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = 'unset';
+    };
+  }, [isModalOpen]);
 
   const fetchOrders = async () => {
     try {
@@ -56,6 +87,62 @@ const MyOrders = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleOrderExpansion = (orderId) => {
+    setExpandedOrders(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(orderId)) {
+        newSet.delete(orderId);
+      } else {
+        newSet.add(orderId);
+      }
+      return newSet;
+    });
+  };
+  const handleProductClick = async (item, order) => {
+    try {
+      // First set basic product info to show modal immediately
+      setSelectedProduct({
+        ...item,
+        orderInfo: {
+          orderDate: order.createdAt,
+          orderNumber: order.orderNumber || order._id,
+          orderStatus: order.orderStatus
+        }
+      });
+      setIsModalOpen(true);
+
+      // Then fetch full product details if productId is available
+      if (item.productId) {
+        setIsLoadingProductDetails(true);
+        console.log('Fetching full product details for:', item.productId);
+        const response = await apiService.getProductById(item.productId);
+        
+        if (response.success && response.data) {
+          setSelectedProduct(prev => ({
+            ...prev,
+            ...response.data,
+            // Keep the order-specific info (quantity, price from order)
+            quantity: item.quantity,
+            price: item.price,
+            orderInfo: prev.orderInfo
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching product details:', error);
+      // Modal is already open with basic info, so just log the error
+    } finally {
+      setIsLoadingProductDetails(false);
+    }
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setSelectedProduct(null);
+    setSelectedImageIndex(0);
+    setIsLoadingProductDetails(false);
   };
 
   const getStatusIcon = (status) => {
@@ -283,9 +370,13 @@ const MyOrders = () => {
         {/* Orders Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {sortedOrders.map((order, index) => (
-            <div
+            <motion.div
               key={order._id || index}
               className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: index * 0.1 }}
+              whileHover={{ y: -5 }}
             >
               {/* Order Header */}
               <div className="bg-gradient-to-r from-purple-100 to-pink-100 px-4 py-3">
@@ -314,33 +405,63 @@ const MyOrders = () => {
                   </div>
                 </div>
 
-                {/* Items Preview with Names */}
+                {/* Items Preview with Enhanced Images */}
                 <div className="mb-4">
-                  <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
+                  <div className="flex items-center justify-between text-sm text-gray-600 mb-3">
                     <span className="font-medium">Items ({order.items?.length || 0})</span>
+                    {order.items?.length > 2 && (
+                      <button
+                        onClick={() => toggleOrderExpansion(order._id)}
+                        className="flex items-center text-purple-600 hover:text-purple-800 transition-colors text-xs font-medium"
+                      >
+                        <FiEye className="mr-1" />
+                        {expandedOrders.has(order._id) ? 'Show Less' : 'View All'}
+                        {expandedOrders.has(order._id) ? 
+                          <FiChevronUp className="ml-1" /> : 
+                          <FiChevronDown className="ml-1" />
+                        }
+                      </button>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    {order.items?.slice(0, 2).map((item, itemIndex) => (
-                      <div key={itemIndex} className="flex items-center space-x-3">
-                        <img
-                          src={item.image}
-                          alt={item.name}
-                          className="w-10 h-10 object-cover rounded-lg border border-gray-200"
-                          onError={(e) => {
-                            e.target.src = '/api/placeholder/40/40';
-                          }}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
-                          <div className="flex items-center justify-between text-xs text-gray-600">
-                            <span>Qty: {item.quantity}</span>
-                            <span className="font-medium">${item.price?.toFixed(2)}</span>
+                  <div className="space-y-3">
+                    {(expandedOrders.has(order._id) ? order.items : order.items?.slice(0, 2))?.map((item, itemIndex) => (
+                      <motion.div 
+                        key={itemIndex} 
+                        className="flex items-center space-x-3 p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.3, delay: itemIndex * 0.1 }}
+                      >
+                        <div className="relative group cursor-pointer" onClick={() => handleProductClick(item, order)} title="Click to view product details">
+                          <img
+                            src={item.image || (item.images && item.images.length > 0 ? item.images[0] : null) || '/assets/images/placeholder.svg'}
+                            alt={item.name}
+                            className="w-16 h-16 object-cover rounded-lg border-2 border-white shadow-md group-hover:scale-110 group-hover:shadow-lg transition-all duration-300"
+                            onError={(e) => {
+                              e.target.src = '/assets/images/placeholder.svg';
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 rounded-lg transition-all duration-300 flex items-center justify-center">
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-white rounded-full p-1 shadow-lg">
+                              <FiCamera className="text-purple-600" size={14} />
+                            </div>
+                          </div>
+                          <div className="absolute -top-2 -right-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold shadow-lg border-2 border-white">
+                            {item.quantity}
                           </div>
                         </div>
-                      </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-800 truncate">{item.name}</p>
+                          <div className="flex items-center justify-between text-xs text-gray-600 mt-1">
+                            <span className="text-purple-600 font-medium">Qty: {item.quantity}</span>
+                            <span className="font-bold text-green-600">${item.price?.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </motion.div>
                     ))}
-                    {order.items?.length > 2 && (
-                      <div className="text-center text-xs text-gray-500 py-1 bg-gray-50 rounded">
+                    {!expandedOrders.has(order._id) && order.items?.length > 2 && (
+                      <div className="text-center text-xs text-gray-500 py-2 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-100">
+                        <FiPackage className="inline mr-1" />
                         +{order.items.length - 2} more items
                       </div>
                     )}
@@ -374,7 +495,7 @@ const MyOrders = () => {
                   </div>
                 )}
               </div>
-            </div>
+            </motion.div>
           ))}
         </div>
 
@@ -384,6 +505,271 @@ const MyOrders = () => {
             <FiSearch size={48} className="mx-auto text-gray-300 mb-4" />
             <h3 className="text-xl font-semibold text-gray-800 mb-2">No orders found</h3>
             <p className="text-gray-600">Try adjusting your search or filters</p>
+          </div>
+        )}
+
+        {/* Product Detail Modal */}
+        {isModalOpen && selectedProduct && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                closeModal();
+              }
+            }}
+          >
+            <motion.div
+              className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3 }}
+            >
+              {/* Modal Header */}
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+                <div className="flex items-center">
+                  <h2 className="text-xl font-bold text-gray-800">Product Details</h2>
+                  {isLoadingProductDetails && (
+                    <div className="ml-3 flex items-center text-purple-600">
+                      <FiRefreshCw className="animate-spin mr-1" size={16} />
+                      <span className="text-sm">Loading details...</span>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={closeModal}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <FiX size={24} />
+                </button>
+              </div>
+
+              {/* Modal Content */}
+              <div className="p-6">
+                {/* Product Image Gallery */}
+                <div className="mb-6">
+                  <div className="relative w-full h-64 bg-gray-100 rounded-xl overflow-hidden mb-4 group cursor-pointer">
+                    {selectedProduct.images && selectedProduct.images.length > 0 ? (
+                      <img
+                        src={selectedProduct.images[selectedImageIndex]}
+                        alt={selectedProduct.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onClick={() => window.open(selectedProduct.images[selectedImageIndex], '_blank')}
+                        onError={(e) => {
+                          e.target.src = '/assets/images/placeholder.svg';
+                        }}
+                      />
+                    ) : (
+                      <img
+                        src={selectedProduct.image || '/assets/images/placeholder.svg'}
+                        alt={selectedProduct.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onClick={() => selectedProduct.image && window.open(selectedProduct.image, '_blank')}
+                        onError={(e) => {
+                          e.target.src = '/assets/images/placeholder.svg';
+                        }}
+                      />
+                    )}
+                    <div className="absolute top-4 right-4 bg-white rounded-full px-3 py-1 shadow-lg">
+                      <span className="text-sm font-semibold text-purple-600">
+                        Qty: {selectedProduct.quantity}
+                      </span>
+                    </div>
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 rounded-xl transition-all duration-300 flex items-center justify-center">
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-white rounded-full p-3 shadow-lg">
+                        <FiCamera className="text-purple-600" size={20} />
+                      </div>
+                    </div>
+                    <div className="absolute bottom-4 left-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <span className="text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
+                        Click to view full size
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Image Thumbnails */}
+                  {selectedProduct.images && selectedProduct.images.length > 1 && (
+                    <div className="flex space-x-2 overflow-x-auto">
+                      {selectedProduct.images.map((image, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setSelectedImageIndex(index)}
+                          className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
+                            selectedImageIndex === index 
+                              ? 'border-purple-500 scale-105' 
+                              : 'border-gray-200 hover:border-purple-300'
+                          }`}
+                        >
+                          <img
+                            src={image}
+                            alt={`${selectedProduct.name} ${index + 1}`}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.target.src = '/assets/images/placeholder.svg';
+                            }}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Product Info */}
+                <div className="space-y-4">
+                  {/* Name and Price */}
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-800 mb-2">
+                      {selectedProduct.name}
+                    </h3>
+                    <div className="flex items-center space-x-4">
+                      <span className="text-3xl font-bold text-green-600">
+                        ${selectedProduct.price?.toFixed(2)}
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        per item
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  {selectedProduct.description && (
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-800 mb-2">Description</h4>
+                      <p className="text-gray-600 leading-relaxed">
+                        {selectedProduct.description}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Product Details */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {selectedProduct.category && (
+                      <div className="bg-purple-50 rounded-lg p-4">
+                        <h5 className="font-semibold text-gray-800 mb-1 flex items-center">
+                          <FiPackage className="mr-2 text-purple-600" size={16} />
+                          Category
+                        </h5>
+                        <p className="text-gray-600 capitalize">{selectedProduct.category}</p>
+                      </div>
+                    )}
+                    
+                    {selectedProduct.occasion && (
+                      <div className="bg-pink-50 rounded-lg p-4">
+                        <h5 className="font-semibold text-gray-800 mb-1 flex items-center">
+                          <FiHeart className="mr-2 text-pink-600" size={16} />
+                          Occasion
+                        </h5>
+                        <p className="text-gray-600 capitalize">{selectedProduct.occasion}</p>
+                      </div>
+                    )}
+
+                    {selectedProduct.dimensions && (selectedProduct.dimensions.height || selectedProduct.dimensions.width || selectedProduct.dimensions.depth) && (
+                      <div className="bg-blue-50 rounded-lg p-4">
+                        <h5 className="font-semibold text-gray-800 mb-1">Dimensions</h5>
+                        <p className="text-gray-600">
+                          {selectedProduct.dimensions.height || 0}H x {selectedProduct.dimensions.width || 0}W x {selectedProduct.dimensions.depth || 0}D cm
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="bg-green-50 rounded-lg p-4">
+                      <h5 className="font-semibold text-gray-800 mb-1 flex items-center">
+                        <FiDollarSign className="mr-2 text-green-600" size={16} />
+                        Total Price
+                      </h5>
+                      <p className="text-gray-600 font-bold text-lg">
+                        ${(selectedProduct.price * selectedProduct.quantity).toFixed(2)}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        ${selectedProduct.price?.toFixed(2)} × {selectedProduct.quantity}
+                      </p>
+                    </div>
+
+                    {selectedProduct.rating && (
+                      <div className="bg-yellow-50 rounded-lg p-4">
+                        <h5 className="font-semibold text-gray-800 mb-1 flex items-center">
+                          <FiStar className="mr-2 text-yellow-500" size={16} />
+                          Rating
+                        </h5>
+                        <div className="flex items-center">
+                          <div className="flex text-yellow-400">
+                            {[...Array(5)].map((_, i) => (
+                              <FiStar key={i} className={i < Math.floor(selectedProduct.rating) ? 'fill-current' : ''} size={14} />
+                            ))}
+                          </div>
+                          <span className="ml-2 text-sm text-gray-600">({selectedProduct.rating}/5)</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedProduct.stock !== undefined && (
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <h5 className="font-semibold text-gray-800 mb-1">Stock Status</h5>
+                        <p className={`text-sm font-medium ${selectedProduct.stock > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {selectedProduct.stock > 0 ? `${selectedProduct.stock} in stock` : 'Out of stock'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Order Information */}
+                  <div className="border-t border-gray-200 pt-4">
+                    <h4 className="text-lg font-semibold text-gray-800 mb-3">Order Information</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-purple-50 rounded-lg p-3">
+                        <div className="flex items-center text-purple-600 mb-1">
+                          <FiCalendar className="mr-2" size={16} />
+                          <span className="font-medium">Order Date</span>
+                        </div>
+                        <p className="text-gray-700 text-sm">
+                          {new Date(selectedProduct.orderInfo?.orderDate).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })}
+                        </p>
+                      </div>
+
+                      <div className="bg-blue-50 rounded-lg p-3">
+                        <div className="flex items-center text-blue-600 mb-1">
+                          <FiPackage className="mr-2" size={16} />
+                          <span className="font-medium">Order ID</span>
+                        </div>
+                        <p className="text-gray-700 text-sm font-mono">
+                          {selectedProduct.orderInfo?.orderNumber?.slice(-8) || 'N/A'}
+                        </p>
+                      </div>
+
+                      <div className="bg-green-50 rounded-lg p-3">
+                        <div className="flex items-center text-green-600 mb-1">
+                          <FiCheck className="mr-2" size={16} />
+                          <span className="font-medium">Status</span>
+                        </div>
+                        <p className="text-gray-700 text-sm capitalize">
+                          {selectedProduct.orderInfo?.orderStatus || 'pending'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Modal Actions */}
+                <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
+                  <button
+                    onClick={closeModal}
+                    className="px-6 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                  >
+                    Close
+                  </button>
+                  <Link
+                    to="/collection"
+                    className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all"
+                    onClick={closeModal}
+                  >
+                    Shop Similar Items
+                  </Link>
+                </div>
+              </div>
+            </motion.div>
           </div>
         )}
       </div>

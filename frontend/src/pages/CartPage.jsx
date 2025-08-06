@@ -74,11 +74,11 @@ const CartPage = () => {
                     {/* Product Image */}
                     <div className="w-20 h-20 bg-white rounded-xl overflow-hidden shadow-sm mb-4 sm:mb-0 sm:mr-4">
                       <img 
-                        src={item.image} 
+                        src={item.image || (item.images && item.images.length > 0 ? item.images[0] : null) || '/assets/images/placeholder.jpg'} 
                         alt={item.name}
                         className="w-full h-full object-cover"
                         onError={(e) => {
-                          e.target.src = '/api/placeholder/80/80';
+                          e.target.src = '/assets/images/placeholder.jpg';
                         }}
                       />
                     </div>

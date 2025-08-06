@@ -39,7 +39,13 @@ export const CartProvider = ({ children }) => {
       } else {
         // Use provided quantity or default to 1
         const quantity = product.quantity || 1;
-        return [...prevCart, { ...product, quantity }];
+        // Ensure image is properly set for cart display
+        const productWithImage = {
+          ...product,
+          quantity,
+          image: product.image || (product.images && product.images.length > 0 ? product.images[0] : null) || '/assets/images/placeholder.jpg'
+        };
+        return [...prevCart, productWithImage];
       }
     });
   };

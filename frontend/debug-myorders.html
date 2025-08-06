@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug My Orders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .debug-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .debug-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border-left: 4px solid #007acc;
+            background: #f8f9fa;
+        }
+        .debug-title {
+            font-weight: bold;
+            color: #007acc;
+            margin-bottom: 10px;
+        }
+        .debug-result {
+            font-family: 'Courier New', monospace;
+            background: #eee;
+            padding: 10px;
+            border-radius: 4px;
+            word-break: break-all;
+        }
+        .btn {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        .btn:hover {
+            background: #005a9e;
+        }
+        .error {
+            color: #d73527;
+            border-left-color: #d73527;
+        }
+        .success {
+            color: #28a745;
+            border-left-color: #28a745;
+        }
+    </style>
+</head>
+<body>
+    <div class="debug-container">
+        <h1>Debug My Orders Page</h1>
+        <p>This page will help debug why your My Orders page is not displaying content.</p>
+        
+        <div class="debug-section">
+            <div class="debug-title">1. Check Authentication Status</div>
+            <button class="btn" onclick="checkAuth()">Check Auth</button>
+            <div id="auth-result" class="debug-result"></div>
+        </div>
+        
+        <div class="debug-section">
+            <div class="debug-title">2. Check Backend Connection</div>
+            <button class="btn" onclick="checkBackend()">Test Backend</button>
+            <div id="backend-result" class="debug-result"></div>
+        </div>
+        
+        <div class="debug-section">
+            <div class="debug-title">3. Fetch Orders</div>
+            <button class="btn" onclick="fetchOrders()">Fetch Orders</button>
+            <div id="orders-result" class="debug-result"></div>
+        </div>
+        
+        <div class="debug-section">
+            <div class="debug-title">4. Test Login (if needed)</div>
+            <input type="email" id="email" placeholder="Email" style="padding: 8px; margin-right: 10px; width: 200px;">
+            <input type="password" id="password" placeholder="Password" style="padding: 8px; margin-right: 10px; width: 200px;">
+            <button class="btn" onclick="testLogin()">Test Login</button>
+            <div id="login-result" class="debug-result"></div>
+        </div>
+        
+        <div class="debug-section">
+            <div class="debug-title">5. Quick Fixes</div>
+            <button class="btn" onclick="clearStorage()">Clear Storage</button>
+            <button class="btn" onclick="location.reload()">Reload Page</button>
+            <button class="btn" onclick="window.open('http://localhost:5173/my-orders', '_blank')">Open My Orders</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:5000/api';
+        
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.innerHTML = message;
+            element.className = 'debug-result ' + type;
+        }
+        
+        function getToken() {
+            return localStorage.getItem('token');
+        }
+        
+        function getHeaders(includeAuth = true) {
+            const headers = {
+                'Content-Type': 'application/json',
+            };
+            
+            if (includeAuth) {
+                const token = getToken();
+                if (token) {
+                    headers.Authorization = `Bearer ${token}`;
+                }
+            }
+            
+            return headers;
+        }
+        
+        async function checkAuth() {
+            try {
+                const token = getToken();
+                const user = localStorage.getItem('user');
+                
+                if (!token) {
+                    log('auth-result', 'No token found in localStorage. User is not authenticated.', 'error');
+                    return;
+                }
+                
+                if (!user) {
+                    log('auth-result', 'Token found but no user data. User might be partially authenticated.', 'error');
+                    return;
+                }
+                
+                const parsedUser = JSON.parse(user);
+                log('auth-result', `✓ User authenticated as: ${parsedUser.name || parsedUser.email}\\nToken: ${token.substring(0, 20)}...`, 'success');
+                
+            } catch (error) {
+                log('auth-result', `Error checking auth: ${error.message}`, 'error');
+            }
+        }
+        
+        async function checkBackend() {
+            try {
+                log('backend-result', 'Testing backend connection...');
+                
+                const response = await fetch(`${API_BASE_URL}/test`, {
+                    method: 'GET',
+                    headers: getHeaders(false)
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('backend-result', `✓ Backend is running: ${JSON.stringify(data)}`, 'success');
+                } else {
+                    log('backend-result', `Backend responded with status: ${response.status}`, 'error');
+                }
+                
+            } catch (error) {
+                log('backend-result', `✗ Backend connection failed: ${error.message}\\nMake sure backend is running on http://localhost:5000`, 'error');
+            }
+        }
+        
+        async function fetchOrders() {
+            try {
+                const token = getToken();
+                if (!token) {
+                    log('orders-result', 'No token found. Please login first.', 'error');
+                    return;
+                }
+                
+                log('orders-result', 'Fetching orders...');
+                
+                const response = await fetch(`${API_BASE_URL}/orders/user`, {
+                    method: 'GET',
+                    headers: getHeaders(true)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    log('orders-result', `✓ Orders fetched successfully:\\nCount: ${data.data.orders.length}\\nData: ${JSON.stringify(data.data.orders.slice(0, 2))}`, 'success');
+                } else {
+                    log('orders-result', `✗ Failed to fetch orders:\\n${JSON.stringify(data)}`, 'error');
+                }
+                
+            } catch (error) {
+                log('orders-result', `Error fetching orders: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testLogin() {
+            try {
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                
+                if (!email || !password) {
+                    log('login-result', 'Please enter both email and password', 'error');
+                    return;
+                }
+                
+                log('login-result', 'Attempting login...');
+                
+                const response = await fetch(`${API_BASE_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: getHeaders(false),
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    localStorage.setItem('token', data.data.token);
+                    localStorage.setItem('user', JSON.stringify(data.data.user));
+                    log('login-result', `✓ Login successful for: ${data.data.user.name}`, 'success');
+                } else {
+                    log('login-result', `✗ Login failed: ${data.message || 'Unknown error'}`, 'error');
+                }
+                
+            } catch (error) {
+                log('login-result', `Error during login: ${error.message}`, 'error');
+            }
+        }
+        
+        function clearStorage() {
+            localStorage.clear();
+            log('auth-result', 'Local storage cleared. Page will reload.', 'success');
+            setTimeout(() => location.reload(), 1000);
+        }
+        
+        // Auto-check on page load
+        window.onload = function() {
+            checkAuth();
+        };
+    </script>
+</body>
+</html>
