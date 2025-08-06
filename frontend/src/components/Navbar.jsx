@@ -13,30 +13,30 @@ const mainLinks = [
   {
     name: 'Home',
     path: '/',
-    color: 'from-yellow-100 to-amber-200 hover:from-yellow-200 hover:to-amber-300',
+    color: 'bg-yellow-200 hover:from-yellow-200 hover:to-amber-300',
     icon: <FiHome className="text-lg" />,
-    mobileColor: 'bg-amber-100'
+    mobileColor: 'bg-emerald-200'
   },
   {
     name: 'Collection',
     path: '/collection',
-    color: 'from-purple-100 to-violet-200 hover:from-purple-200 hover:to-violet-300',
+    color: 'bg-yellow-200 hover:from-yellow-200 hover:to-amber-300',
     icon: <FiGrid className="text-lg" />,
-    mobileColor: 'bg-violet-100'
+    mobileColor: 'bg-emerald-200'
   },
   {
     name: 'About',
     path: '/about',
-    color: 'from-blue-100 to-sky-200 hover:from-blue-200 hover:to-sky-300',
+    color: 'bg-yellow-200 hover:from-yellow-200 hover:to-amber-300',
     icon: <FiInfo className="text-lg" />,
-    mobileColor: 'bg-sky-100'
+    mobileColor: 'bg-emerald-200'
   },
   {
     name: 'Contact',
     path: '/contact',
-    color: 'from-pink-100 to-rose-200 hover:from-pink-200 hover:to-rose-300',
+    color: 'bg-yellow-200 hover:from-yellow-200 hover:to-amber-300',
     icon: <FiMail className="text-lg" />,
-    mobileColor: 'bg-rose-100'
+    mobileColor: 'bg-emerald-200'
   },
 ];
 
@@ -108,7 +108,7 @@ const UserIcons = ({ isMobile = false }) => {
       >
         <motion.button
           onClick={handleProfileClick}
-          className="p-2 rounded-full bg-gradient-to-r from-blue-100 to-sky-200 text-black hover:from-blue-200 hover:to-sky-300 flex items-center space-x-1"
+         className="p-2 rounded-full bg-emerald-200 text-black hover:from-green-200 hover:to-emerald-300 relative"
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
         >
@@ -162,7 +162,7 @@ const UserIcons = ({ isMobile = false }) => {
       {/* Cart Icon with count badge */}
       <motion.button
         onClick={handleCartClick}
-        className="p-2 rounded-full bg-gradient-to-r from-green-100 to-emerald-200 text-black hover:from-green-200 hover:to-emerald-300 relative"
+        className="p-2 rounded-full bg-emerald-200 text-black hover:from-green-200 hover:to-emerald-300 relative"
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
       >
@@ -218,7 +218,7 @@ const Navbar = () => {
   return (
     <>
     <motion.header
-      className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-green-500 to-pink-500 shadow-lg w-full h-16"
+     className="fixed top-0 left-0 right-0 z-50 bg-green-500 shadow-lg w-full h-16"
       initial={{ y: -100, opacity: 0 }}
       animate={{
         y: hidden ? -100 : 0,
@@ -342,7 +342,7 @@ const Navbar = () => {
 
             <motion.button
               onClick={() => setIsOpen(!isOpen)}
-              className="p-2 rounded-full bg-gradient-to-r from-pink-400 to-blue-500 text-white shadow-md md:hidden"
+              className="p-2 rounded-full bg-emerald-200 text-black hover:from-green-200 hover:to-emerald-300 relative"
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
             >
