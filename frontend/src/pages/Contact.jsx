@@ -42,9 +42,9 @@ const Contact = () => {
   return (
     <div className="bg-gradient-to-br from-pink-50 via-rose-50 to-purple-50">
       <div className="min-h-screen pt-20 px-4">
-        <div className="max-w-6xl mx-auto py-12">
+        <div className="max-w-6xl mx-auto py-5">
           <motion.h1
-                             className="text-4xl sm:text-5xl lg:text-5xl font-extrabold text-center text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 mb-6 drop-shadow-sm"
+                             className="text-4xl sm:text-5xl lg:text-5xl font-extrabold text-center bg-clip-text text-pink-500 mb-6 drop-shadow-sm"
                              initial={{ opacity: 0, y: -20 }}
                              animate={{ opacity: 1, y: 0 }}
                              transition={{ duration: 0.6, ease: 'easeOut' }}
@@ -53,65 +53,7 @@ const Contact = () => {
                            </motion.h1>
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left Column - Contact Form */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3, duration: 0.8 }}
-              className="bg-white p-8 rounded-xl shadow-xl border-t-4 border-pink-500"
-            >
-              <motion.form 
-                variants={container}
-                initial="hidden"
-                animate="visible"
-                className="space-y-6"
-              >
-                <motion.div variants={formItem}>
-                  <label htmlFor="name" className="block text-lg font-medium text-gray-700">
-                    <span className="text-pink-600">✏️</span> Name
-                  </label>
-                  <input
-                    type="text"
-                    id="name"
-                    className="mt-2 block w-full px-4 py-3 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-pink-400 focus:border-pink-400 transition-all"
-                  />
-                </motion.div>
-                
-                <motion.div variants={formItem}>
-                  <label htmlFor="email" className="block text-lg font-medium text-gray-700">
-                    <span className="text-pink-600">✉️</span> Email
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    className="mt-2 block w-full px-4 py-3 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-pink-400 focus:border-pink-400 transition-all"
-                  />
-                </motion.div>
-                
-                <motion.div variants={formItem}>
-                  <label htmlFor="message" className="block text-lg font-medium text-gray-700">
-                    <span className="text-pink-600">💬</span> Message
-                  </label>
-                  <textarea
-                    id="message"
-                    rows="4"
-                    className="mt-2 block w-full px-4 py-3 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-pink-400 focus:border-pink-400 transition-all"
-                  ></textarea>
-                </motion.div>
-                
-                <motion.div variants={formItem}>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    type="submit"
-                    className="w-full bg-gradient-to-r from-rose-500 to-pink-600 text-white py-4 rounded-xl hover:shadow-lg transition-all text-lg font-semibold shadow-md"
-                  >
-                    <span className="mr-2">🚀</span> Send Message
-                  </motion.button>
-                </motion.div>
-              </motion.form>
-            </motion.div>
-
+            
             {/* Right Column - Contact Info */}
             <motion.div 
               initial={{ opacity: 0 }}

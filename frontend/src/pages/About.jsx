@@ -21,9 +21,9 @@ const About = () => {
   return (
     <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-blue-50">
       <div className="min-h-screen pt-20 px-4">
-        <div className="max-w-6xl mx-auto py-12">
+        <div className="max-w-6xl mx-auto py-5">
          <motion.h1
-                    className="text-4xl sm:text-5xl lg:text-5xl font-extrabold text-center text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 mb-6 drop-shadow-sm"
+                    className="text-4xl sm:text-5xl lg:text-5xl font-extrabold text-center bg-clip-text text-pink-500 mb-6 drop-shadow-sm"
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6, ease: 'easeOut' }}

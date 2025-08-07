@@ -30,7 +30,7 @@ const Features = () => {
     <section className="py-16 bg-white">
       <div className="container mx-auto px-4">
          <motion.h2 
-                 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-center text-transparent bg-clip-text bg-gradient-to-r from-purple-600 via-pink-500 to-red-500 mb-10 tracking-tight drop-shadow-sm"
+                 className="text-4xl sm:text-5xl lg:text-5xl font-extrabold text-center bg-clip-text text-pink-500 mb-6 drop-shadow-sm"
                  initial={{ opacity: 0, y: -20 }}
                  whileInView={{ opacity: 1, y: 0 }}
                  transition={{ duration: 0.5 }}

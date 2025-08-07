@@ -202,7 +202,7 @@ const ProductCard = ({ product }) => {
           <h3 className="font-medium text-sm mb-1 line-clamp-2 leading-tight">{product.name}</h3>
           <p className="text-purple-600 font-semibold text-sm mb-2">
             {availableSizes.length > 0 ? (
-              `From Rs. ${Math.min(...availableSizes.map(s => s.price)).toFixed(2)}`
+              `Rs. ${Math.min(...availableSizes.map(s => s.price)).toFixed(2)}`
             ) : (
               `Rs. ${(product.price || 0).toFixed(2)}`
             )}
@@ -210,7 +210,7 @@ const ProductCard = ({ product }) => {
           <div className="flex space-x-1">
             <button
               onClick={handleQuickAddToCart}
-              className="flex-1 py-1.5 px-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded text-xs hover:from-pink-600 hover:to-purple-700 transition-colors flex items-center justify-center space-x-1"
+              className="flex-1 py-1.5 px-2  bg-pink-500 to-purple-600 text-white  transition-colors flex items-center justify-center space-x-1"
             >
               <FiShoppingCart className="h-3 w-3" />
               <span>Add</span>

@@ -95,10 +95,10 @@ const ProductGrid = ({ isCollectionPage = false, maxProducts = null }) => {
   }
   
   return (
-    <section className="py-16 bg-gradient-to-b from-blue-50 to-green-50">
-      <div className="container mx-auto px-4 py-16">
+    <section className="py-10 bg-gradient-to-b from-blue-50 to-green-50">
+      <div className="container mx-auto px-4 py-13">
         <motion.h1
-            className="text-4xl sm:text-5xl lg:text-5xl font-extrabold text-center text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 mb-6 drop-shadow-sm"
+            className="text-4xl sm:text-5xl lg:text-5xl font-extrabold text-center bg-clip-text text-pink-500 mb-6 drop-shadow-sm"
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6, ease: 'easeOut' }}
@@ -124,7 +124,7 @@ const ProductGrid = ({ isCollectionPage = false, maxProducts = null }) => {
                   ? category === 'all' ? 'bg-gray-800 text-white' 
                     : category === 'fresh' ? 'bg-pink-500 text-white' 
                     : category === 'artificial' ? 'bg-blue-500 text-white' 
-                    : category === 'mixed' ? 'bg-orange-500 text-white' 
+                    : category === 'mixed' ? 'bg-purple-500 text-white' 
                     : category === 'bears' ? 'bg-green-500 text-white' 
                     : 'bg-purple-500 text-white'
                   : 'bg-white text-gray-700 hover:bg-gray-100'
@@ -210,7 +210,7 @@ const ProductGrid = ({ isCollectionPage = false, maxProducts = null }) => {
             viewport={{ once: true }}
           >
             <motion.button 
-              className="px-6 py-3 border-2 border-pink-500 text-pink-600 hover:bg-pink-50 rounded-lg font-medium text-sm sm:text-base"
+              className="px-6 py-3 border-2 border-pink-500 text-pink-500 hover:bg-pink-50 rounded-lg font-medium text-sm sm:text-base"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={handleNavigateToCollection}

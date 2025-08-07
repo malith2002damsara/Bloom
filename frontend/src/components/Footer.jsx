@@ -42,14 +42,10 @@ const Footer = () => {
     },
     {
       title: "Quick Links",
-      items: ['Home', 'About Us', 'Products', 'Custom Orders', 'Contact Us'],
+      items: ['Home', 'About Us', 'Products','Contact Us'],
       color: 'text-pink-500'
     },
-    {
-      title: "Customer Service",
-      items: ['FAQ', 'Shipping & Delivery', 'Returns & Refunds', 'Privacy Policy', 'Terms & Conditions'],
-      color: 'text-blue-500'
-    },
+   
     {
       title: "Newsletter",
       content: (
