@@ -4,8 +4,8 @@ import { Eye, EyeOff, Lock, Mail, LogIn, Flower } from 'lucide-react';
 
 const Login = () => {
   const [formData, setFormData] = useState({
-    email: 'malfindamsara87@gmail.com',
-    password: 'password'
+    email: '',
+    password: ''
   });
   const [showPassword, setShowPassword] = useState(false);
   const { login, loading, error } = useSuperAdminAuth();
