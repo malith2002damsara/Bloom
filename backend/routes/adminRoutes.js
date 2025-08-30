@@ -15,35 +15,64 @@ const adminLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Check hardcoded admin credentials
-    const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'malithdamsara87@gmail.com';
-    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'malith123';
+    // Check admin credentials from environment variables
+    const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+    const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL;
+    const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD;
 
-    if (email !== ADMIN_EMAIL || password !== ADMIN_PASSWORD) {
+    let userRole = null;
+    let userEmail = null;
+    let userName = null;
+    let userId = null;
+
+    // Check if it's admin credentials
+    if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+      userRole = 'admin';
+      userEmail = ADMIN_EMAIL;
+      userName = 'Admin User';
+      userId = 'admin_1';
+    }
+    // Check if it's superadmin credentials
+    else if (email === SUPERADMIN_EMAIL && password === SUPERADMIN_PASSWORD) {
+      userRole = 'superadmin';
+      userEmail = SUPERADMIN_EMAIL;
+      userName = 'Super Administrator';
+      userId = 'superadmin_1';
+    }
+    // Invalid credentials
+    else {
       return res.status(401).json({
         success: false,
-        message: 'Invalid admin credentials'
+        message: 'Invalid credentials'
       });
     }
 
-    // Create admin user object
+    if (!ADMIN_EMAIL || !ADMIN_PASSWORD || !SUPERADMIN_EMAIL || !SUPERADMIN_PASSWORD) {
+      return res.status(500).json({
+        success: false,
+        message: 'Credentials not configured'
+      });
+    }
+
+    // Create user object
     const adminUser = {
-      id: 'admin_1',
-      email: ADMIN_EMAIL,
-      name: 'Admin User',
-      role: 'admin'
+      id: userId,
+      email: userEmail,
+      name: userName,
+      role: userRole
     };
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: adminUser.id, role: 'admin' },
+      { userId: adminUser.id, role: userRole },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRE || '7d' }
     );
 
     res.json({
       success: true,
-      message: 'Admin login successful',
+      message: `${userRole === 'superadmin' ? 'SuperAdmin' : 'Admin'} login successful`,
       data: {
         admin: adminUser,
         token
@@ -76,18 +105,27 @@ const verifyAdmin = async (req, res) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    if (decoded.role !== 'admin') {
+    if (decoded.role !== 'admin' && decoded.role !== 'superadmin') {
       return res.status(403).json({
         success: false,
-        message: 'Access denied. Admin role required.'
+        message: 'Access denied. Admin or SuperAdmin role required.'
       });
+    }
+
+    let userEmail, userName;
+    if (decoded.role === 'admin') {
+      userEmail = process.env.ADMIN_EMAIL;
+      userName = 'Admin User';
+    } else {
+      userEmail = process.env.SUPERADMIN_EMAIL;
+      userName = 'Super Administrator';
     }
 
     const adminUser = {
       id: decoded.userId,
-      email: process.env.ADMIN_EMAIL || 'malithdamsara87@gmail.com',
-      name: 'Admin User',
-      role: 'admin'
+      email: userEmail,
+      name: userName,
+      role: decoded.role
     };
 
     res.json({

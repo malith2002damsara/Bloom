@@ -42,7 +42,7 @@ export const AdminAuthProvider = ({ children }) => {
           // If it's a demo token (base64 encoded), decode it
           try {
             const decodedToken = JSON.parse(atob(token));
-            if (decodedToken.email === 'malithdamsara87@gmail.com') {
+            if (decodedToken.email === import.meta.env.VITE_ADMIN_EMAIL) {
               setAdmin({
                 id: decodedToken.id,
                 email: decodedToken.email,
@@ -64,7 +64,7 @@ export const AdminAuthProvider = ({ children }) => {
       // Try to decode demo token as fallback
       try {
         const decodedToken = JSON.parse(atob(token));
-        if (decodedToken.email === 'malithdamsara87@gmail.com') {
+        if (decodedToken.email === import.meta.env.VITE_ADMIN_EMAIL) {
           setAdmin({
             id: decodedToken.id,
             email: decodedToken.email,
@@ -115,10 +115,10 @@ export const AdminAuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Login error:', error);
       // Fallback to hardcoded credentials for demo when backend is not available
-      if (email === 'malithdamsara87@gmail.com' && password === 'malith123') {
+      if (email === import.meta.env.VITE_ADMIN_EMAIL && password === import.meta.env.VITE_ADMIN_PASSWORD) {
         const adminData = {
           id: 'admin_1',
-          email: 'malithdamsara87@gmail.com',
+          email: import.meta.env.VITE_ADMIN_EMAIL,
           name: 'Admin User',
           role: 'admin'
         };
