@@ -1,24 +1,28 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
-  Users, 
   BarChart3, 
   Plus, 
   Package, 
   ShoppingBag,
   LogOut,
-  Flower
+  Flower,
+  Phone,
+  Mail,
+  Lock
 } from 'lucide-react';
 import { useAdminAuth } from '../context/AdminAuthContext';
+import ChangePasswordModal from './ChangePasswordModal';
+import NotificationBell from './NotificationBell';
 
 const Sidebar = () => {
-  const { logout, admin } = useAdminAuth();
+  const { logout, admin, changePassword } = useAdminAuth();
   const location = useLocation();
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   const menuItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/sellers', icon: Users, label: 'Sellers' },
     { path: '/analytics', icon: BarChart3, label: 'Analytics' },
     { path: '/add-items', icon: Plus, label: 'Add Items' },
     { path: '/list-items', icon: Package, label: 'List Items' },
@@ -29,18 +33,26 @@ const Sidebar = () => {
     logout();
   };
 
+  const handlePasswordChange = async (passwords) => {
+    await changePassword(passwords.currentPassword, passwords.newPassword);
+  };
+
   return (
     <div className="bg-white shadow-lg h-screen w-64 fixed left-0 top-0 z-30 flex flex-col">
       {/* Header */}
       <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center space-x-3">
-          <div className="bg-blue-600 p-2 rounded-lg">
-            <Flower className="w-6 h-6 text-white" />
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-3">
+            <div className="bg-blue-600 p-2 rounded-lg">
+              <Flower className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">BloomGrad</h1>
+              <p className="text-sm text-gray-500">Admin Panel</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">BloomGrad</h1>
-            <p className="text-sm text-gray-500">Admin Panel</p>
-          </div>
+          {/* Notification Bell */}
+          <NotificationBell />
         </div>
       </div>
 
@@ -67,6 +79,26 @@ const Sidebar = () => {
         </ul>
       </nav>
 
+      {/* SuperAdmin Contact Info */}
+      {admin?.superAdminContact && (
+        <div className="px-4 py-3 mx-4 mb-4 bg-purple-50 border border-purple-200 rounded-lg">
+          <p className="text-xs font-semibold text-purple-900 mb-2">Super Admin Contact</p>
+          <div className="space-y-1">
+            <p className="text-xs text-purple-800 font-medium">{admin.superAdminContact.name}</p>
+            <div className="flex items-center space-x-1 text-xs text-purple-700">
+              <Mail className="w-3 h-3" />
+              <span className="truncate">{admin.superAdminContact.email}</span>
+            </div>
+            {admin.superAdminContact.phone && (
+              <div className="flex items-center space-x-1 text-xs text-purple-700">
+                <Phone className="w-3 h-3" />
+                <span>{admin.superAdminContact.phone}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* User Info & Logout */}
       <div className="p-4 border-t border-gray-200">
         <div className="flex items-center space-x-3 mb-4">
@@ -86,6 +118,14 @@ const Sidebar = () => {
         </div>
         
         <button
+          onClick={() => setShowPasswordModal(true)}
+          className="w-full flex items-center space-x-3 px-4 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors duration-200 mb-2"
+        >
+          <Lock className="w-5 h-5" />
+          <span className="font-medium">Change Password</span>
+        </button>
+        
+        <button
           onClick={handleLogout}
           className="w-full flex items-center space-x-3 px-4 py-2 text-gray-700 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors duration-200"
         >
@@ -93,6 +133,13 @@ const Sidebar = () => {
           <span className="font-medium">Logout</span>
         </button>
       </div>
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal 
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        onPasswordChange={handlePasswordChange}
+      />
     </div>
   );
 };

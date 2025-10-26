@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
+import adminApi from '../utils/api';
 
 const AdminAuthContext = createContext();
 
@@ -18,64 +19,29 @@ export const AdminAuthProvider = ({ children }) => {
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
     if (token) {
-      // Verify token and set admin
-      verifyToken(token);
+      verifyToken();
     } else {
       setLoading(false);
     }
   }, []);
 
-  const verifyToken = async (token) => {
+  const verifyToken = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/admin/verify`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        try {
-          const data = await response.json();
-          setAdmin(data.admin);
-        } catch (jsonError) {
-          console.error('JSON parsing error during verification:', jsonError);
-          // If it's a demo token (base64 encoded), decode it
-          try {
-            const decodedToken = JSON.parse(atob(token));
-            if (decodedToken.email === import.meta.env.VITE_ADMIN_EMAIL) {
-              setAdmin({
-                id: decodedToken.id,
-                email: decodedToken.email,
-                name: decodedToken.name,
-                role: decodedToken.role
-              });
-            } else {
-              localStorage.removeItem('adminToken');
-            }
-          } catch (decodeError) {
-            localStorage.removeItem('adminToken');
-          }
-        }
+      const response = await adminApi.verifyAdmin();
+      if (response.success && response.data && response.data.admin) {
+        setAdmin(response.data.admin);
       } else {
         localStorage.removeItem('adminToken');
+        setAdmin(null);
       }
     } catch (error) {
       console.error('Token verification failed:', error);
-      // Try to decode demo token as fallback
-      try {
-        const decodedToken = JSON.parse(atob(token));
-        if (decodedToken.email === import.meta.env.VITE_ADMIN_EMAIL) {
-          setAdmin({
-            id: decodedToken.id,
-            email: decodedToken.email,
-            name: decodedToken.name,
-            role: decodedToken.role
-          });
-        } else {
-          localStorage.removeItem('adminToken');
-        }
-      } catch (decodeError) {
-        localStorage.removeItem('adminToken');
+      localStorage.removeItem('adminToken');
+      setAdmin(null);
+      
+      // Check if it's a disabled account error
+      if (error.message && error.message.includes('disabled')) {
+        toast.error('Your account has been disabled. Please contact the Super Administrator.');
       }
     } finally {
       setLoading(false);
@@ -86,52 +52,28 @@ export const AdminAuthProvider = ({ children }) => {
     try {
       setLoading(true);
       
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/admin/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
+      const response = await adminApi.adminLogin({ email, password });
 
-      let data;
-      try {
-        data = await response.json();
-      } catch (jsonError) {
-        console.error('JSON parsing error:', jsonError);
-        // If JSON parsing fails, fallback to hardcoded credentials
-        throw new Error('Backend connection failed');
-      }
-
-      if (response.ok && data.success) {
-        localStorage.setItem('adminToken', data.data.token);
-        setAdmin(data.data.admin);
+      if (response.success && response.data) {
+        localStorage.setItem('adminToken', response.data.token);
+        setAdmin(response.data.admin);
         toast.success('Login successful!');
         return { success: true };
       } else {
-        toast.error(data.message || 'Invalid admin credentials');
-        return { success: false, message: data.message || 'Invalid credentials' };
+        toast.error(response.message || 'Invalid admin credentials');
+        return { success: false, message: response.message || 'Invalid credentials' };
       }
     } catch (error) {
       console.error('Login error:', error);
-      // Fallback to hardcoded credentials for demo when backend is not available
-      if (email === import.meta.env.VITE_ADMIN_EMAIL && password === import.meta.env.VITE_ADMIN_PASSWORD) {
-        const adminData = {
-          id: 'admin_1',
-          email: import.meta.env.VITE_ADMIN_EMAIL,
-          name: 'Admin User',
-          role: 'admin'
-        };
-        
-        const token = btoa(JSON.stringify({ ...adminData, timestamp: Date.now() }));
-        localStorage.setItem('adminToken', token);
-        setAdmin(adminData);
-        toast.success('Login successful! (Demo mode - Backend not connected)');
-        return { success: true };
-      } else {
-        toast.error('Invalid credentials or backend connection failed');
-        return { success: false, message: 'Login failed' };
+      
+      // Check if account is disabled
+      if (error.message && error.message.includes('disabled')) {
+        toast.error('Your account has been disabled. Please contact the Super Administrator.');
+        return { success: false, message: 'Account disabled', disabled: true };
       }
+      
+      toast.error(error.message || 'Login failed');
+      return { success: false, message: error.message || 'Login failed' };
     } finally {
       setLoading(false);
     }
@@ -143,10 +85,30 @@ export const AdminAuthProvider = ({ children }) => {
     toast.success('Logged out successfully');
   };
 
+  const changePassword = async (currentPassword, newPassword) => {
+    try {
+      const response = await adminApi.changePassword({ currentPassword, newPassword });
+      
+      if (response.success) {
+        toast.success('Password changed successfully. Please login again.');
+        logout();
+        return { success: true };
+      } else {
+        toast.error(response.message || 'Failed to change password');
+        return { success: false, message: response.message };
+      }
+    } catch (error) {
+      console.error('Change password error:', error);
+      toast.error(error.message || 'Failed to change password');
+      return { success: false, message: error.message };
+    }
+  };
+
   const value = {
     admin,
     login,
     logout,
+    changePassword,
     loading,
     isAuthenticated: !!admin,
   };

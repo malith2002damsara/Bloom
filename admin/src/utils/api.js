@@ -62,11 +62,44 @@ class AdminApiService {
     return this.request('/admin/verify');
   }
 
+  async changePassword(passwordData) {
+    return this.request('/admin/change-password', {
+      method: 'PUT',
+      body: JSON.stringify(passwordData),
+    });
+  }
+
+  async getProfile() {
+    return this.request('/admin/profile');
+  }
+
+  async updateProfile(profileData) {
+    return this.request('/admin/profile', {
+      method: 'PUT',
+      body: JSON.stringify(profileData),
+    });
+  }
+
   // Product endpoints
   async getProducts(params = {}) {
     const queryString = new URLSearchParams(params).toString();
     const endpoint = queryString ? `/products?${queryString}` : '/products';
     return this.request(endpoint);
+  }
+
+  async getAdminProducts() {
+    // Get current admin's ID from token
+    const token = this.getToken();
+    if (!token) return { success: false, message: 'No auth token' };
+    
+    try {
+      const decoded = JSON.parse(atob(token.split('.')[1]));
+      const adminId = decoded.userId;
+      return this.request(`/products?adminId=${adminId}`);
+    } catch (error) {
+      console.error('Error getting admin products:', error);
+      return { success: false, message: 'Failed to get admin products' };
+    }
   }
 
   async createProduct(productData) {
@@ -124,6 +157,29 @@ class AdminApiService {
     const queryString = new URLSearchParams(params).toString();
     const endpoint = queryString ? `/admin/sellers?${queryString}` : '/admin/sellers';
     return this.request(endpoint);
+  }
+
+  // Notification endpoints
+  async getNotifications() {
+    return this.request('/admin/notifications');
+  }
+
+  async markNotificationRead(notificationId) {
+    return this.request(`/admin/notifications/${notificationId}/read`, {
+      method: 'PUT',
+    });
+  }
+
+  async markAllNotificationsRead() {
+    return this.request('/admin/notifications/read-all', {
+      method: 'PUT',
+    });
+  }
+
+  async deleteNotification(notificationId) {
+    return this.request(`/admin/notifications/${notificationId}`, {
+      method: 'DELETE',
+    });
   }
 }
 

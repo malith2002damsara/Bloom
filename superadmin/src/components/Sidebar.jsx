@@ -1,32 +1,36 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Users, 
-  BarChart3, 
-  Plus, 
   ShoppingBag,
   LogOut,
   Flower,
-  Settings
+  UserPlus,
+  List,
+  Lock
 } from 'lucide-react';
 import { useSuperAdminAuth } from '../context/SuperAdminAuthContext';
+import ChangePasswordModal from './ChangePasswordModal';
 
 const Sidebar = () => {
-  const { logout, superAdmin } = useSuperAdminAuth();
+  const { logout, superAdmin, changePassword } = useSuperAdminAuth();
   const location = useLocation();
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   const menuItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/admin-accounts', icon: Users, label: 'Admin Accounts' },
-    { path: '/analytics', icon: BarChart3, label: 'Analytics' },
-    { path: '/products', icon: Plus, label: 'Products' },
+    { path: '/add-admin', icon: UserPlus, label: 'Add Admin' },
+    { path: '/list-admin', icon: List, label: 'List Admin' },
     { path: '/transactions', icon: ShoppingBag, label: 'Transactions' },
-    { path: '/settings', icon: Settings, label: 'Settings' },
   ];
 
   const handleLogout = () => {
     logout();
+  };
+
+  const handlePasswordChange = async (passwords) => {
+    await changePassword(passwords.currentPassword, passwords.newPassword);
   };
 
   return (
@@ -86,6 +90,14 @@ const Sidebar = () => {
         </div>
         
         <button
+          onClick={() => setShowPasswordModal(true)}
+          className="w-full flex items-center space-x-3 px-4 py-2 text-gray-700 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-colors duration-200 mb-2"
+        >
+          <Lock className="w-5 h-5" />
+          <span className="font-medium">Change Password</span>
+        </button>
+        
+        <button
           onClick={handleLogout}
           className="w-full flex items-center space-x-3 px-4 py-2 text-gray-700 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors duration-200"
         >
@@ -93,6 +105,13 @@ const Sidebar = () => {
           <span className="font-medium">Logout</span>
         </button>
       </div>
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal 
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        onPasswordChange={handlePasswordChange}
+      />
     </div>
   );
 };

@@ -5,10 +5,15 @@ const Product = require('../models/Product');
 // @access  Public
 const getProducts = async (req, res) => {
   try {
-    const { category, search, sortBy, page = 1, limit = 20 } = req.query;
+    const { category, search, sortBy, page = 1, limit = 20, adminId } = req.query;
     
     // Build query object
     let query = {};
+
+    // Filter by admin (for admin users to see only their products)
+    if (adminId) {
+      query.adminId = adminId;
+    }
 
     // Filter by category
     if (category && category !== 'all') {
@@ -419,6 +424,9 @@ const createProduct = async (req, res) => {
       }, 0);
     }
 
+    // Get admin ID from request (set by auth middleware)
+    const adminId = req.user._id;
+
     // Create new product
     const productData = {
       name: name.trim(),
@@ -437,6 +445,7 @@ const createProduct = async (req, res) => {
         name: parsedSeller.name.trim(),
         contact: parsedSeller.contact.trim()
       },
+      adminId: adminId, // Link product to admin
       inStock: true,
       stock: 10
     };
@@ -548,12 +557,20 @@ const updateProduct = async (req, res) => {
       seller
     } = req.body;
 
-    // Check if product exists
+    // Check if product exists and belongs to this admin
     const existingProduct = await Product.findById(productId);
     if (!existingProduct) {
       return res.status(404).json({
         success: false,
         message: 'Product not found'
+      });
+    }
+
+    // Verify product belongs to this admin (unless superadmin)
+    if (req.user.role !== 'superadmin' && existingProduct.adminId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to update this product'
       });
     }
 
@@ -777,7 +794,7 @@ const updateProduct = async (req, res) => {
 // @access  Private/Admin
 const deleteProduct = async (req, res) => {
   try {
-    const product = await Product.findByIdAndDelete(req.params.id);
+    const product = await Product.findById(req.params.id);
 
     if (!product) {
       return res.status(404).json({
@@ -785,6 +802,16 @@ const deleteProduct = async (req, res) => {
         message: 'Product not found'
       });
     }
+
+    // Verify product belongs to this admin (unless superadmin)
+    if (req.user.role !== 'superadmin' && product.adminId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to delete this product'
+      });
+    }
+
+    await Product.findByIdAndDelete(req.params.id);
 
     res.json({
       success: true,

@@ -26,11 +26,6 @@ const List = () => {
     dimensions: { height: '', width: '', depth: '' }
   });
 
-  const [editSellerData, setEditSellerData] = useState({
-    name: '',
-    phone: ''
-  });
-
   const categories = [
     'fresh',
     'artificial', 
@@ -96,21 +91,28 @@ const List = () => {
     filterProducts();
   }, [products, searchTerm, categoryFilter]);
 
-  // Debug useEffect to monitor editFormData changes
-  useEffect(() => {
-    if (editingProduct) {
-      console.log('Edit form data changed:', editFormData);
-    }
-  }, [editFormData, editingProduct]);
-
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/products`);
+      // Fetch only admin's products
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/products`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        }
+      });
       const data = await response.json();
       
       if (data.success) {
-        setProducts(data.data.products || []);
+        // Get admin ID from token
+        const token = localStorage.getItem('adminToken');
+        const decoded = JSON.parse(atob(token.split('.')[1]));
+        const adminId = decoded.userId;
+        
+        // Filter products by adminId
+        const adminProducts = (data.data.products || []).filter(
+          product => product.adminId === adminId
+        );
+        setProducts(adminProducts);
       } else {
         throw new Error(data.message || 'Failed to fetch products');
       }
@@ -154,10 +156,6 @@ const List = () => {
       bearDetails: product.bearDetails || { sizes: [], colors: [] },
       dimensions: product.dimensions || { height: '', width: '', depth: '' }
     });
-    setEditSellerData({
-      name: product.seller?.name || '',
-      phone: product.seller?.contact || product.seller?.phone || ''
-    });
   };
 
   const viewProduct = (product) => {
@@ -182,10 +180,6 @@ const List = () => {
       bearDetails: { sizes: [], colors: [] },
       dimensions: { height: '', width: '', depth: '' }
     });
-    setEditSellerData({
-      name: '',
-      phone: ''
-    });
   };
 
   const handleEditSubmit = async (e) => {
@@ -194,12 +188,7 @@ const List = () => {
     try {
       // Prepare the submit data with automatic price calculation
       const submitData = {
-        ...editFormData,
-        seller: {
-          name: editSellerData.name,
-          contact: editSellerData.phone,
-          phone: editSellerData.phone
-        }
+        ...editFormData
       };
 
       // Calculate price from sizes and ensure proper formatting
@@ -339,14 +328,6 @@ const List = () => {
         [name]: type === 'checkbox' ? checked : value
       }));
     }
-  };
-
-  const handleSellerChange = (e) => {
-    const { name, value } = e.target;
-    setEditSellerData(prev => ({
-      ...prev,
-      [name]: value
-    }));
   };
 
   // Size management functions for edit form
@@ -1160,45 +1141,35 @@ const List = () => {
             </div>
 
             <form onSubmit={handleEditSubmit} className="p-6 space-y-8">
-              {/* Seller Information Section */}
-              <div className="bg-gradient-to-r from-pink-50 to-purple-50 p-6 rounded-xl border border-pink-200 shadow-sm">
-                <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <User className="w-5 h-5 text-pink-600" />
-                  Seller Information
-                </h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Seller Name *
-                    </label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={editSellerData.name}
-                      onChange={handleSellerChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all"
-                      placeholder="Enter seller's full name"
-                      required
-                    />
-                  </div>
+              {/* Seller Information Section - Read Only */}
+              {editingProduct?.seller && (
+                <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-6 rounded-xl border border-gray-200 shadow-sm">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <User className="w-5 h-5 text-gray-600" />
+                    Seller Information (Read Only)
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Seller Name
+                      </label>
+                      <div className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg text-gray-700">
+                        {editingProduct.seller.name}
+                      </div>
+                    </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Phone Number *
-                    </label>
-                    <input
-                      type="tel"
-                      name="phone"
-                      value={editSellerData.phone}
-                      onChange={handleSellerChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all"
-                      placeholder="+1 (555) 123-4567"
-                      required
-                    />
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Phone Number
+                      </label>
+                      <div className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg text-gray-700">
+                        {editingProduct.seller.contact || 'Not provided'}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Basic Product Information */}
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200 shadow-sm">

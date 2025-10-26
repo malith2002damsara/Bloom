@@ -12,9 +12,11 @@ const app = express();
 app.use(cors({
   origin: [
     'http://localhost:5173', 
-    'http://localhost:5174', 
+    'http://localhost:5174',
+    'http://localhost:5175',
     'http://localhost:3000', 
     'http://localhost:3001', 
+    'http://localhost:3002',
     'http://localhost:3003',
     'https://bloom-f4qt.vercel.app',
     'https://bloom-beta-mauve.vercel.app'
@@ -64,8 +66,16 @@ app.use('*', (req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+}).on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Please free up the port or use a different one.`);
+    process.exit(1);
+  } else {
+    console.error('Server error:', err);
+  }
 });

@@ -17,79 +17,100 @@ class SuperAdminAPI {
     }
 
     try {
-      const response = await fetch(`${this.baseURL}${endpoint}`, {
+      const url = `${this.baseURL}${endpoint}`;
+      console.log('Making request to:', url);
+      
+      const response = await fetch(url, {
         ...options,
         headers,
       });
 
       const data = await response.json();
+      
+      console.log('Response status:', response.status);
+      console.log('Response data:', data);
 
       if (!response.ok) {
-        throw new Error(data.message || 'Request failed');
+        throw new Error(data.message || `Request failed with status ${response.status}`);
       }
 
       return data;
     } catch (error) {
       console.error('API Error:', error);
+      console.error('Request details:', {
+        endpoint,
+        baseURL: this.baseURL,
+        hasToken: !!token
+      });
       throw error;
     }
   }
 
   // Authentication
   async login(credentials) {
-    return this.makeRequest('/admin/login', {
+    return this.makeRequest('/superadmin/login', {
       method: 'POST',
       body: JSON.stringify(credentials),
     });
   }
 
   async verifyToken() {
-    return this.makeRequest('/admin/verify', {
+    return this.makeRequest('/superadmin/verify', {
       method: 'GET',
     });
   }
 
-  // Admin Account Management
-  async getAdminAccounts(params = {}) {
-    const queryString = new URLSearchParams(params).toString();
-    return this.makeRequest(`/superadmin/admins${queryString ? `?${queryString}` : ''}`);
+  async changePassword(passwordData) {
+    return this.makeRequest('/superadmin/change-password', {
+      method: 'PUT',
+      body: JSON.stringify(passwordData),
+    });
   }
 
-  async createAdminAccount(adminData) {
+  // Admin Account Management
+  async getAllAdmins() {
+    return this.makeRequest('/superadmin/admins');
+  }
+
+  async getAdmin(adminId) {
+    return this.makeRequest(`/superadmin/admins/${adminId}`);
+  }
+
+  async createAdmin(adminData) {
     return this.makeRequest('/superadmin/admins', {
       method: 'POST',
       body: JSON.stringify(adminData),
     });
   }
 
-  async updateAdminAccount(adminId, updateData) {
+  async updateAdmin(adminId, updateData) {
     return this.makeRequest(`/superadmin/admins/${adminId}`, {
       method: 'PUT',
       body: JSON.stringify(updateData),
     });
   }
 
-  async deactivateAdminAccount(adminId) {
-    return this.makeRequest(`/superadmin/admins/${adminId}/deactivate`, {
-      method: 'PATCH',
-    });
-  }
-
-  async activateAdminAccount(adminId) {
+  async activateAdmin(adminId) {
     return this.makeRequest(`/superadmin/admins/${adminId}/activate`, {
       method: 'PATCH',
     });
   }
 
-  async deleteAdminAccount(adminId) {
+  async deactivateAdmin(adminId) {
+    return this.makeRequest(`/superadmin/admins/${adminId}/deactivate`, {
+      method: 'PATCH',
+    });
+  }
+
+  async deleteAdmin(adminId) {
     return this.makeRequest(`/superadmin/admins/${adminId}`, {
       method: 'DELETE',
     });
   }
 
-  // Analytics
+  // Dashboard
   async getDashboardStats() {
-    return this.makeRequest('/admin/stats');
+    return this.makeRequest('/superadmin/dashboard/stats');
   }
 
   async getAnalyticsData(period = '30d') {
@@ -116,9 +137,28 @@ class SuperAdminAPI {
 
   async updateTransactionStatus(transactionId, status) {
     return this.makeRequest(`/superadmin/transactions/${transactionId}/status`, {
-      method: 'PATCH',
+      method: 'PUT',
       body: JSON.stringify({ status }),
     });
+  }
+
+  async updateTransactionPayment(transactionId, paymentData) {
+    return this.makeRequest(`/superadmin/transactions/${transactionId}/payment`, {
+      method: 'PUT',
+      body: JSON.stringify(paymentData),
+    });
+  }
+
+  async generateMonthlyCommissions(month, year) {
+    return this.makeRequest('/superadmin/transactions/generate-monthly', {
+      method: 'POST',
+      body: JSON.stringify({ month, year }),
+    });
+  }
+
+  async getAdminCommissionReport(adminId, params = {}) {
+    const queryString = new URLSearchParams(params).toString();
+    return this.makeRequest(`/superadmin/admins/${adminId}/commission-report${queryString ? `?${queryString}` : ''}`);
   }
 
   // Products

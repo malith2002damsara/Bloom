@@ -7,14 +7,12 @@ export default {
   theme: {
     extend: {
       colors: {
-        'palette': {
-          'yellow': '#F4E04D',
-          'green': '#A4C962',
-          'orange': '#FF7F00',
-          'pink': '#FF1744',
-          'beige': '#E8D5B7',
-        }
-      },
+        primary: '#2563eb',
+        secondary: '#64748b',
+        success: '#10b981',
+        danger: '#ef4444',
+        warning: '#f59e0b',
+      }
     },
   },
   plugins: [],

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAdminAuth } from '../context/AdminAuthContext';
-import { Eye, EyeOff, Lock, Mail, LogIn } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, LogIn, AlertCircle } from 'lucide-react';
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -8,6 +8,7 @@ const Login = () => {
     password: ''
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
   const { login, loading } = useAdminAuth();
 
   const handleChange = (e) => {
@@ -15,11 +16,22 @@ const Login = () => {
       ...formData,
       [e.target.name]: e.target.value
     });
+    setError(''); // Clear error when user types
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    await login(formData.email, formData.password);
+    setError('');
+    
+    const result = await login(formData.email, formData.password);
+    
+    if (!result.success) {
+      if (result.disabled) {
+        setError('Your account has been disabled. Please contact the Super Administrator for assistance.');
+      } else {
+        setError(result.message || 'Login failed. Please check your credentials.');
+      }
+    }
   };
 
   return (
@@ -32,6 +44,13 @@ const Login = () => {
           <h1 className="text-2xl font-bold text-gray-900">Admin Portal</h1>
           <p className="text-gray-600 mt-2">Sign in to access BloomGrad Admin</p>
         </div>
+
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start">
+            <AlertCircle className="w-5 h-5 text-red-600 mr-3 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-red-800">{error}</p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
@@ -95,7 +114,9 @@ const Login = () => {
           </button>
         </form>
 
-        
+        <div className="text-center mt-6 text-xs text-gray-500">
+          BloomGrad Admin v1.0
+        </div>
       </div>
     </div>
   );

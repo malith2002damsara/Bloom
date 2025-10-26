@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useSuperAdminAuth } from '../context/SuperAdminAuthContext';
-import { Eye, EyeOff, Lock, Mail, LogIn, Flower } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, LogIn, Flower, AlertCircle } from 'lucide-react';
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -8,18 +8,30 @@ const Login = () => {
     password: ''
   });
   const [showPassword, setShowPassword] = useState(false);
-  const { login, loading, error } = useSuperAdminAuth();
+  const [error, setError] = useState('');
+  const { login, loading } = useSuperAdminAuth();
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     });
+    setError(''); // Clear error when user types
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    await login(formData.email, formData.password);
+    setError('');
+    
+    const result = await login(formData.email, formData.password);
+    
+    if (!result.success) {
+      if (result.disabled) {
+        setError('Your account has been disabled. Please contact the system administrator for assistance.');
+      } else {
+        setError(result.message || 'Login failed. Please check your credentials.');
+      }
+    }
   };
 
   return (
@@ -34,8 +46,9 @@ const Login = () => {
         </div>
 
         {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-6 text-sm text-center">
-            {error}
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start">
+            <AlertCircle className="w-5 h-5 text-red-600 mr-3 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-red-800">{error}</p>
           </div>
         )}
 
@@ -104,7 +117,7 @@ const Login = () => {
         </form>
 
         <div className="text-center mt-6 text-xs text-gray-500">
-          BloomGrad SuperAdmin v1.0
+          BloomGrad Super Admin v1.0
         </div>
       </div>
     </div>

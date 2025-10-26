@@ -7,7 +7,6 @@ import { AdminAuthProvider, useAdminAuth } from './context/AdminAuthContext';
 import Login from './components/Login';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
-import Sellers from './pages/Sellers';
 import Analytics from './pages/Analytics';
 import Add from './pages/Add';
 import List from './pages/List';
@@ -69,16 +68,6 @@ const AppContent = () => {
             <ProtectedRoute>
               <AdminLayout>
                 <Dashboard />
-              </AdminLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/sellers"
-          element={
-            <ProtectedRoute>
-              <AdminLayout>
-                <Sellers />
               </AdminLayout>
             </ProtectedRoute>
           }

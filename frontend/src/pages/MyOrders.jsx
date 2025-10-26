@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import apiService from '../services/api';
 import { 
@@ -40,14 +39,6 @@ const MyOrders = () => {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isLoadingProductDetails, setIsLoadingProductDetails] = useState(false);
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchOrders();
-    } else {
-      setLoading(false);
-    }
-  }, [isAuthenticated]);
-
   // Handle Escape key to close modal
   useEffect(() => {
     const handleEscape = (e) => {
@@ -71,18 +62,28 @@ const MyOrders = () => {
     try {
       setLoading(true);
       setError('');
-      console.log('Fetching orders...');
+      console.log('=== FETCHING USER ORDERS ===');
+      console.log('User authenticated:', isAuthenticated);
+      console.log('Auth token present:', !!localStorage.getItem('token'));
+      console.log('Current user:', localStorage.getItem('user'));
+      
       const response = await apiService.getUserOrders();
       console.log('API Response:', response);
       
       if (response.success) {
+        console.log(`✅ Loaded ${response.data.orders.length} orders for current user`);
         setOrders(response.data.orders);
-        console.log('Orders loaded:', response.data.orders);
+        
+        // Log order IDs to verify they belong to current user
+        if (response.data.orders.length > 0) {
+          console.log('Order IDs:', response.data.orders.map(o => o._id));
+          console.log('First order userId:', response.data.orders[0].userId);
+        }
       } else {
         setError('Failed to fetch orders');
       }
     } catch (error) {
-      console.error('Error fetching orders:', error);
+      console.error('❌ Error fetching orders:', error);
       setError(error.message || 'Failed to fetch orders');
     } finally {
       setLoading(false);

@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const userSchema = new mongoose.Schema({
+const adminSchema = new mongoose.Schema({
   name: {
     type: String,
     required: [true, 'Name is required'],
@@ -17,33 +17,29 @@ const userSchema = new mongoose.Schema({
     lowercase: true,
     match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
   },
-  phone: {
-    type: String,
-    required: [true, 'Phone number is required'],
-    trim: true,
-    minlength: [10, 'Phone number must be at least 10 characters'],
-    maxlength: [15, 'Phone number cannot exceed 15 characters']
-  },
   password: {
     type: String,
     required: [true, 'Password is required'],
     minlength: [6, 'Password must be at least 6 characters long']
   },
+  phone: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   role: {
     type: String,
-    enum: ['user', 'admin', 'superadmin'],
-    default: 'user'
-  },
-  address: {
-    street: { type: String, default: '' },
-    city: { type: String, default: '' },
-    state: { type: String, default: '' },
-    zipCode: { type: String, default: '' },
-    country: { type: String, default: '' }
+    enum: ['admin'],
+    default: 'admin'
   },
   isActive: {
     type: Boolean,
     default: true
+  },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
   },
   lastLogin: {
     type: Date,
@@ -58,7 +54,7 @@ const userSchema = new mongoose.Schema({
 });
 
 // Hash password before saving
-userSchema.pre('save', async function(next) {
+adminSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
   
   try {
@@ -67,7 +63,7 @@ userSchema.pre('save', async function(next) {
     
     // Set passwordChangedAt if password is being changed (not on creation)
     if (!this.isNew) {
-      this.passwordChangedAt = Date.now() - 1000;
+      this.passwordChangedAt = Date.now() - 1000; // Subtract 1 second to ensure token is created after password change
     }
     
     next();
@@ -77,19 +73,19 @@ userSchema.pre('save', async function(next) {
 });
 
 // Compare password method
-userSchema.methods.comparePassword = async function(candidatePassword) {
+adminSchema.methods.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
 // Remove password from JSON output
-userSchema.methods.toJSON = function() {
-  const userObject = this.toObject();
-  delete userObject.password;
-  return userObject;
+adminSchema.methods.toJSON = function() {
+  const adminObject = this.toObject();
+  delete adminObject.password;
+  return adminObject;
 };
 
 // Check if password was changed after JWT was issued
-userSchema.methods.changedPasswordAfter = function(JWTTimestamp) {
+adminSchema.methods.changedPasswordAfter = function(JWTTimestamp) {
   if (this.passwordChangedAt) {
     const changedTimestamp = parseInt(this.passwordChangedAt.getTime() / 1000, 10);
     return JWTTimestamp < changedTimestamp;
@@ -97,4 +93,4 @@ userSchema.methods.changedPasswordAfter = function(JWTTimestamp) {
   return false;
 };
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = mongoose.model('Admin', adminSchema);

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { toast } from 'react-toastify';
 import { superAdminAPI } from '../utils/api';
 
 const SuperAdminAuthContext = createContext();
@@ -31,13 +32,14 @@ export const SuperAdminAuthProvider = ({ children }) => {
       const response = await superAdminAPI.verifyToken();
       if (response.success && response.data && response.data.admin) {
         const admin = response.data.admin;
-        if (admin.role === 'superadmin' || admin.role === 'admin') {
+        if (admin.role === 'superadmin') {
           setIsAuthenticated(true);
           setSuperAdmin(admin);
         } else {
           localStorage.removeItem('superAdminToken');
           setIsAuthenticated(false);
           setSuperAdmin(null);
+          toast.error('Access denied. SuperAdmin role required.');
         }
       } else {
         localStorage.removeItem('superAdminToken');
@@ -49,6 +51,11 @@ export const SuperAdminAuthProvider = ({ children }) => {
       localStorage.removeItem('superAdminToken');
       setIsAuthenticated(false);
       setSuperAdmin(null);
+      
+      // Check if it's a disabled account error
+      if (error.message && error.message.includes('disabled')) {
+        toast.error('Your account has been disabled');
+      }
     } finally {
       setLoading(false);
     }
@@ -61,18 +68,28 @@ export const SuperAdminAuthProvider = ({ children }) => {
         const admin = response.data.admin;
         const token = response.data.token;
         
-        if (admin.role === 'superadmin' || admin.role === 'admin') {
+        if (admin.role === 'superadmin') {
           localStorage.setItem('superAdminToken', token);
           setIsAuthenticated(true);
           setSuperAdmin(admin);
+          toast.success('Login successful!');
           return { success: true };
         } else {
-          throw new Error('Unauthorized: Admin access required');
+          throw new Error('Access denied. SuperAdmin role required.');
         }
       } else {
-        throw new Error('Invalid response format');
+        throw new Error(response.message || 'Login failed');
       }
     } catch (error) {
+      console.error('Login error:', error);
+      
+      // Check if account is disabled
+      if (error.message && error.message.includes('disabled')) {
+        toast.error('Your account has been disabled');
+        return { success: false, message: 'Account disabled', disabled: true };
+      }
+      
+      toast.error(error.message || 'Login failed');
       throw new Error(error.message || 'Login failed');
     }
   };
@@ -81,6 +98,26 @@ export const SuperAdminAuthProvider = ({ children }) => {
     localStorage.removeItem('superAdminToken');
     setIsAuthenticated(false);
     setSuperAdmin(null);
+    toast.success('Logged out successfully');
+  };
+
+  const changePassword = async (currentPassword, newPassword) => {
+    try {
+      const response = await superAdminAPI.changePassword({ currentPassword, newPassword });
+      
+      if (response.success) {
+        toast.success('Password changed successfully. Please login again.');
+        logout();
+        return { success: true };
+      } else {
+        toast.error(response.message || 'Failed to change password');
+        return { success: false, message: response.message };
+      }
+    } catch (error) {
+      console.error('Change password error:', error);
+      toast.error(error.message || 'Failed to change password');
+      return { success: false, message: error.message };
+    }
   };
 
   const value = {
@@ -89,6 +126,7 @@ export const SuperAdminAuthProvider = ({ children }) => {
     loading,
     login,
     logout,
+    changePassword,
     checkAuthStatus
   };
 

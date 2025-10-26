@@ -7,11 +7,9 @@ import { SuperAdminAuthProvider, useSuperAdminAuth } from './context/SuperAdminA
 import Login from './components/Login';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
-import AdminAccounts from './pages/AdminAccounts';
-import Analytics from './pages/Analytics';
-import Products from './pages/Products';
+import AddAdmin from './pages/AddAdmin';
+import ListAdmin from './pages/ListAdmin';
 import Transactions from './pages/Transactions';
-import Settings from './pages/Settings';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useSuperAdminAuth();
@@ -74,31 +72,21 @@ const AppContent = () => {
           }
         />
         <Route
-          path="/admin-accounts"
+          path="/add-admin"
           element={
             <ProtectedRoute>
               <AdminLayout>
-                <AdminAccounts />
+                <AddAdmin />
               </AdminLayout>
             </ProtectedRoute>
           }
         />
         <Route
-          path="/analytics"
+          path="/list-admin"
           element={
             <ProtectedRoute>
               <AdminLayout>
-                <Analytics />
-              </AdminLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/products"
-          element={
-            <ProtectedRoute>
-              <AdminLayout>
-                <Products />
+                <ListAdmin />
               </AdminLayout>
             </ProtectedRoute>
           }
@@ -109,16 +97,6 @@ const AppContent = () => {
             <ProtectedRoute>
               <AdminLayout>
                 <Transactions />
-              </AdminLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <ProtectedRoute>
-              <AdminLayout>
-                <Settings />
               </AdminLayout>
             </ProtectedRoute>
           }

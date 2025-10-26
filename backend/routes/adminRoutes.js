@@ -1,184 +1,88 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const User = require('../models/User');
+const {
+  adminLogin,
+  verifyAdmin,
+  changeAdminPassword,
+  getAdminProfile,
+  updateAdminProfile
+} = require('../controllers/adminAuthController');
+const {
+  getNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  deleteNotification
+} = require('../controllers/notificationController');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
+const User = require('../models/User');
 const { auth, adminOnly } = require('../middleware/auth');
 
 const router = express.Router();
-
-// @desc    Admin Login
-// @route   POST /api/admin/login
-// @access  Public
-const adminLogin = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    // Check admin credentials from environment variables
-    const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
-    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-    const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL;
-    const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD;
-
-    let userRole = null;
-    let userEmail = null;
-    let userName = null;
-    let userId = null;
-
-    // Check if it's admin credentials
-    if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-      userRole = 'admin';
-      userEmail = ADMIN_EMAIL;
-      userName = 'Admin User';
-      userId = 'admin_1';
-    }
-    // Check if it's superadmin credentials
-    else if (email === SUPERADMIN_EMAIL && password === SUPERADMIN_PASSWORD) {
-      userRole = 'superadmin';
-      userEmail = SUPERADMIN_EMAIL;
-      userName = 'Super Administrator';
-      userId = 'superadmin_1';
-    }
-    // Invalid credentials
-    else {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid credentials'
-      });
-    }
-
-    if (!ADMIN_EMAIL || !ADMIN_PASSWORD || !SUPERADMIN_EMAIL || !SUPERADMIN_PASSWORD) {
-      return res.status(500).json({
-        success: false,
-        message: 'Credentials not configured'
-      });
-    }
-
-    // Create user object
-    const adminUser = {
-      id: userId,
-      email: userEmail,
-      name: userName,
-      role: userRole
-    };
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { userId: adminUser.id, role: userRole },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRE || '7d' }
-    );
-
-    res.json({
-      success: true,
-      message: `${userRole === 'superadmin' ? 'SuperAdmin' : 'Admin'} login successful`,
-      data: {
-        admin: adminUser,
-        token
-      }
-    });
-
-  } catch (error) {
-    console.error('Admin login error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error during admin login',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-};
-
-// @desc    Verify Admin Token
-// @route   GET /api/admin/verify
-// @access  Private
-const verifyAdmin = async (req, res) => {
-  try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
-    
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: 'No token provided'
-      });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    if (decoded.role !== 'admin' && decoded.role !== 'superadmin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. Admin or SuperAdmin role required.'
-      });
-    }
-
-    let userEmail, userName;
-    if (decoded.role === 'admin') {
-      userEmail = process.env.ADMIN_EMAIL;
-      userName = 'Admin User';
-    } else {
-      userEmail = process.env.SUPERADMIN_EMAIL;
-      userName = 'Super Administrator';
-    }
-
-    const adminUser = {
-      id: decoded.userId,
-      email: userEmail,
-      name: userName,
-      role: decoded.role
-    };
-
-    res.json({
-      success: true,
-      data: { admin: adminUser }
-    });
-
-  } catch (error) {
-    console.error('Admin verification error:', error);
-    
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid token'
-      });
-    }
-    
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({
-        success: false,
-        message: 'Token expired'
-      });
-    }
-
-    res.status(500).json({
-      success: false,
-      message: 'Server error during verification'
-    });
-  }
-};
 
 // @desc    Get Dashboard Statistics
 // @route   GET /api/admin/stats
 // @access  Private/Admin
 const getDashboardStats = async (req, res) => {
   try {
-    // Get total counts
-    const totalProducts = await Product.countDocuments();
-    const totalUsers = await User.countDocuments({ role: 'user' });
-    const totalOrders = await Order.countDocuments();
+    const adminId = req.user._id;
+    const isSuperAdmin = req.user.role === 'superadmin';
+
+    console.log('Dashboard Stats - Admin ID:', adminId);
+    console.log('Dashboard Stats - Is SuperAdmin:', isSuperAdmin);
+
+    // Build query for admin's products
+    const productQuery = isSuperAdmin ? {} : { adminId: adminId };
     
-    // Get total sales
-    const salesAggregation = await Order.aggregate([
-      { $match: { status: 'completed' } },
-      { $group: { _id: null, totalSales: { $sum: '$totalAmount' } } }
-    ]);
-    const totalSales = salesAggregation.length > 0 ? salesAggregation[0].totalSales : 0;
+    console.log('Dashboard Stats - Product Query:', productQuery);
+    
+    // Get admin's products
+    const adminProducts = await Product.find(productQuery).select('_id');
+    const productIds = adminProducts.map(p => p._id);
+    
+    console.log('Dashboard Stats - Found Products:', adminProducts.length);
+    console.log('Dashboard Stats - Product IDs:', productIds);
+    
+    // Count products
+    const totalProducts = adminProducts.length;
+    
+    // Get orders containing admin's products
+    const adminOrders = await Order.find({
+      'items.productId': { $in: productIds.map(id => id.toString()) }
+    });
+    
+    console.log('Dashboard Stats - Found Orders:', adminOrders.length);
+    
+    const totalOrders = adminOrders.length;
+    
+    // Calculate total sales from completed orders
+    const completedOrders = adminOrders.filter(order => 
+      order.orderStatus === 'delivered' || order.orderStatus === 'completed'
+    );
+    const totalSales = completedOrders.reduce((sum, order) => {
+      // Calculate sales only for this admin's products in the order
+      const adminItemsTotal = order.items
+        .filter(item => productIds.map(id => id.toString()).includes(item.productId))
+        .reduce((itemSum, item) => itemSum + (item.price * item.quantity), 0);
+      return sum + adminItemsTotal;
+    }, 0);
     
     // Get pending orders
-    const pendingOrders = await Order.countDocuments({ status: 'pending' });
+    const pendingOrders = adminOrders.filter(order => order.orderStatus === 'pending').length;
     
     // Get low stock products (stock <= 10)
-    const lowStock = await Product.countDocuments({ stock: { $lte: 10 }, inStock: true });
+    const lowStock = await Product.countDocuments({ 
+      ...productQuery,
+      stock: { $lte: 10 }, 
+      inStock: true 
+    });
+
+    console.log('Dashboard Stats - Final Stats:', {
+      totalSales: Math.round(totalSales * 100) / 100,
+      totalOrders,
+      totalProducts,
+      pendingOrders,
+      lowStock
+    });
 
     res.json({
       success: true,
@@ -186,7 +90,6 @@ const getDashboardStats = async (req, res) => {
         totalSales: Math.round(totalSales * 100) / 100,
         totalOrders,
         totalProducts,
-        totalUsers,
         pendingOrders,
         lowStock
       }
@@ -207,6 +110,8 @@ const getDashboardStats = async (req, res) => {
 const getAnalytics = async (req, res) => {
   try {
     const { range = '7d' } = req.query;
+    const adminId = req.user._id;
+    const isSuperAdmin = req.user.role === 'superadmin';
     
     // Calculate date range
     const now = new Date();
@@ -229,22 +134,36 @@ const getAnalytics = async (req, res) => {
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     }
 
-    // Get analytics data for the range
+    // Build query for admin's products
+    const productQuery = isSuperAdmin ? {} : { adminId: adminId };
+    
+    // Get admin's products
+    const adminProducts = await Product.find(productQuery).select('_id');
+    const productIds = adminProducts.map(p => p._id.toString());
+    
+    // Get orders in range containing admin's products
     const ordersInRange = await Order.find({
-      createdAt: { $gte: startDate, $lte: now }
+      createdAt: { $gte: startDate, $lte: now },
+      'items.productId': { $in: productIds }
     });
 
-    const completedOrders = ordersInRange.filter(order => order.status === 'completed');
-    const revenue = completedOrders.reduce((sum, order) => sum + order.totalAmount, 0);
-    
-    const uniqueCustomers = new Set(ordersInRange.map(order => order.user.toString())).size;
+    // Calculate revenue from completed orders
+    const completedOrders = ordersInRange.filter(order => 
+      order.orderStatus === 'delivered' || order.orderStatus === 'completed'
+    );
+    const revenue = completedOrders.reduce((sum, order) => {
+      const adminItemsTotal = order.items
+        .filter(item => productIds.includes(item.productId))
+        .reduce((itemSum, item) => itemSum + (item.price * item.quantity), 0);
+      return sum + adminItemsTotal;
+    }, 0);
 
     res.json({
       success: true,
       data: {
         revenue: {
           value: Math.round(revenue * 100) / 100,
-          change: 12.5, // This would be calculated based on previous period
+          change: 12.5,
           positive: true
         },
         orders: {
@@ -252,13 +171,8 @@ const getAnalytics = async (req, res) => {
           change: 8.2,
           positive: true
         },
-        customers: {
-          value: uniqueCustomers,
-          change: -2.1,
-          positive: false
-        },
         products: {
-          value: await Product.countDocuments(),
+          value: adminProducts.length,
           change: 4.3,
           positive: true
         }
@@ -274,59 +188,21 @@ const getAnalytics = async (req, res) => {
   }
 };
 
-// @desc    Get Sellers Data
-// @route   GET /api/admin/sellers
-// @access  Private/Admin
-const getSellers = async (req, res) => {
-  try {
-    // Get all products with seller information
-    const products = await Product.find().populate('seller', 'name email phone');
-    
-    // Group by seller and calculate stats
-    const sellerStats = {};
-    
-    products.forEach(product => {
-      const sellerId = product.seller?._id?.toString() || 'unknown';
-      const sellerName = product.seller?.name || product.seller?.name || 'Unknown Seller';
-      
-      if (!sellerStats[sellerId]) {
-        sellerStats[sellerId] = {
-          id: sellerId,
-          name: sellerName,
-          contact: product.seller?.contact || 'N/A',
-          address: 'N/A',
-          rating: 4.5 + Math.random() * 0.5, // Demo rating
-          totalProducts: 0,
-          totalSales: 0,
-          joinDate: product.createdAt || new Date(),
-          status: 'active'
-        };
-      }
-      
-      sellerStats[sellerId].totalProducts++;
-      sellerStats[sellerId].totalSales += product.price * Math.floor(Math.random() * 10 + 1); // Demo sales
-    });
-
-    const sellers = Object.values(sellerStats);
-
-    res.json({
-      success: true,
-      data: { sellers }
-    });
-
-  } catch (error) {
-    console.error('Sellers fetch error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error fetching sellers data'
-    });
-  }
-};
-
+// Authentication routes
 router.post('/login', adminLogin);
 router.get('/verify', verifyAdmin);
+router.put('/change-password', auth, adminOnly, changeAdminPassword);
+router.get('/profile', auth, adminOnly, getAdminProfile);
+router.put('/profile', auth, adminOnly, updateAdminProfile);
+
+// Data routes
 router.get('/stats', auth, adminOnly, getDashboardStats);
 router.get('/analytics', auth, adminOnly, getAnalytics);
-router.get('/sellers', auth, adminOnly, getSellers);
+
+// Notification routes
+router.get('/notifications', auth, adminOnly, getNotifications);
+router.put('/notifications/:id/read', auth, adminOnly, markNotificationRead);
+router.put('/notifications/read-all', auth, adminOnly, markAllNotificationsRead);
+router.delete('/notifications/:id', auth, adminOnly, deleteNotification);
 
 module.exports = router;

@@ -1,31 +1,38 @@
 import React, { useState, useEffect } from 'react';
 import { 
   TrendingUp, 
-  Users, 
   Package, 
   DollarSign,
   ShoppingBag,
   Eye,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import adminApi from '../utils/api';
+import DashboardCharts from '../components/DashboardCharts';
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
     totalSales: 0,
     totalOrders: 0,
     totalProducts: 0,
-    totalUsers: 0,
     pendingOrders: 0,
     lowStock: 0
   });
 
   const [recentOrders, setRecentOrders] = useState([]);
+  const [salesData, setSalesData] = useState([]);
+  const [categoryData, setCategoryData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
+    
+    // Auto-refresh every 60 seconds
+    const interval = setInterval(fetchDashboardData, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   const fetchDashboardData = async () => {
@@ -39,44 +46,139 @@ const Dashboard = () => {
       }
 
       // Fetch recent orders
-      const ordersResponse = await adminApi.getOrders({ limit: 5, sort: '-createdAt' });
+      const ordersResponse = await adminApi.getOrders({ limit: 10 });
       if (ordersResponse.success) {
-        setRecentOrders(ordersResponse.data.orders || []);
+        const orders = ordersResponse.data.orders || [];
+        setRecentOrders(orders);
+        
+        // Generate sales data for last 7 days
+        const last7Days = generateLast7DaysData(orders);
+        setSalesData(last7Days);
+      }
+
+      // Fetch products for category distribution
+      const productsResponse = await adminApi.getAdminProducts();
+      if (productsResponse.success) {
+        const products = productsResponse.data.products || [];
+        const catData = generateCategoryData(products);
+        setCategoryData(catData);
       }
 
     } catch (error) {
       console.error('Dashboard data fetch error:', error);
       
-      // Check if it's an authentication error
       if (error.message.includes('Invalid token') || error.message.includes('401')) {
         toast.error('Please login to access dashboard data');
       } else {
-        // Fallback to demo data when API is not available
-        const demoStats = {
-          totalSales: 15420,
-          totalOrders: 342,
-          totalProducts: 48,
-          totalUsers: 1256,
-          pendingOrders: 23,
-          lowStock: 8
-        };
-
-        const demoOrders = [
-          { _id: '#12345', user: { name: 'John Doe' }, totalAmount: 89.99, status: 'completed', createdAt: '2025-07-31T00:00:00.000Z' },
-          { _id: '#12346', user: { name: 'Jane Smith' }, totalAmount: 156.50, status: 'pending', createdAt: '2025-07-31T00:00:00.000Z' },
-          { _id: '#12347', user: { name: 'Mike Johnson' }, totalAmount: 75.25, status: 'processing', createdAt: '2025-07-30T00:00:00.000Z' },
-          { _id: '#12348', user: { name: 'Sarah Wilson' }, totalAmount: 234.00, status: 'completed', createdAt: '2025-07-30T00:00:00.000Z' },
-          { _id: '#12349', user: { name: 'Tom Brown' }, totalAmount: 98.75, status: 'pending', createdAt: '2025-07-29T00:00:00.000Z' },
-        ];
-
-        setStats(demoStats);
-        setRecentOrders(demoOrders);
-        
+        // Fallback to demo data
+        setDemoData();
         toast.warning('Using demo data - Please check your connection');
       }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchDashboardData();
+    toast.success('Dashboard refreshed!');
+  };
+
+  const generateLast7DaysData = (orders) => {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const today = new Date();
+    const data = [];
+
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dayName = days[date.getDay()];
+      
+      const dayOrders = orders.filter(order => {
+        const orderDate = new Date(order.createdAt);
+        return orderDate.toDateString() === date.toDateString();
+      });
+
+      const sales = dayOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+      
+      data.push({
+        day: dayName,
+        sales: Math.round(sales * 100) / 100,
+        orders: dayOrders.length
+      });
+    }
+
+    return data;
+  };
+
+  const generateCategoryData = (products) => {
+    const categories = {
+      fresh: 0,
+      artificial: 0,
+      mixed: 0,
+      bears: 0,
+      other: 0
+    };
+
+    products.forEach(product => {
+      const cat = product.category?.toLowerCase() || 'other';
+      if (categories.hasOwnProperty(cat)) {
+        categories[cat]++;
+      } else {
+        categories.other++;
+      }
+    });
+
+    const total = Object.values(categories).reduce((a, b) => a + b, 0);
+
+    return [
+      { name: 'Fresh Flowers', value: categories.fresh, total },
+      { name: 'Artificial', value: categories.artificial, total },
+      { name: 'Mixed', value: categories.mixed, total },
+      { name: 'Bears', value: categories.bears, total },
+      { name: 'Other', value: categories.other, total },
+    ].filter(item => item.value > 0);
+  };
+
+  const setDemoData = () => {
+    const demoStats = {
+      totalSales: 15420,
+      totalOrders: 342,
+      totalProducts: 48,
+      pendingOrders: 23,
+      lowStock: 8
+    };
+
+    const demoOrders = [
+      { _id: '#12345', customerInfo: { name: 'John Doe' }, total: 89.99, orderStatus: 'completed', createdAt: new Date().toISOString() },
+      { _id: '#12346', customerInfo: { name: 'Jane Smith' }, total: 156.50, orderStatus: 'pending', createdAt: new Date().toISOString() },
+      { _id: '#12347', customerInfo: { name: 'Mike Johnson' }, total: 75.25, orderStatus: 'processing', createdAt: new Date().toISOString() },
+    ];
+
+    const demoSalesData = [
+      { day: 'Mon', sales: 2400, orders: 12 },
+      { day: 'Tue', sales: 1398, orders: 8 },
+      { day: 'Wed', sales: 9800, orders: 24 },
+      { day: 'Thu', sales: 3908, orders: 16 },
+      { day: 'Fri', sales: 4800, orders: 19 },
+      { day: 'Sat', sales: 3800, orders: 15 },
+      { day: 'Sun', sales: 4300, orders: 17 },
+    ];
+
+    const demoCategoryData = [
+      { name: 'Fresh Flowers', value: 15, total: 48 },
+      { name: 'Artificial', value: 12, total: 48 },
+      { name: 'Mixed', value: 10, total: 48 },
+      { name: 'Bears', value: 8, total: 48 },
+      { name: 'Other', value: 3, total: 48 },
+    ];
+
+    setStats(demoStats);
+    setRecentOrders(demoOrders);
+    setSalesData(demoSalesData);
+    setCategoryData(demoCategoryData);
   };
 
   const StatCard = ({ title, value, icon: Icon, color, change }) => (
@@ -110,21 +212,31 @@ const Dashboard = () => {
 
   return (
     <div className="p-6">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600 mt-2">Welcome back! Here's what's happening with your store.</p>
+      {/* Header with Refresh Button */}
+      <div className="mb-8 flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600 mt-2">Welcome back! Here's what's happening with your store.</p>
+        </div>
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="flex items-center space-x-2 px-4 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+        >
+          <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+          <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+        </button>
       </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-8 h-8 border-4 border-pink-600 border-t-transparent rounded-full animate-spin"></div>
           <span className="ml-3 text-gray-600">Loading dashboard data...</span>
         </div>
       ) : (
         <>
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
             <StatCard
               title="Total Sales"
               value={`$${stats.totalSales.toLocaleString()}`}
@@ -144,13 +256,6 @@ const Dashboard = () => {
               value={stats.totalProducts}
               icon={Package}
               color="bg-purple-500"
-            />
-            <StatCard
-              title="Total Users"
-              value={stats.totalUsers}
-              icon={Users}
-              color="bg-orange-500"
-              change={{ positive: true, value: 5.1 }}
             />
           </div>
 
@@ -176,6 +281,13 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
+
+          {/* Dashboard Charts */}
+          <DashboardCharts 
+            salesData={salesData}
+            categoryData={categoryData}
+            recentOrders={recentOrders}
+          />
 
           {/* Recent Orders */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100">
@@ -220,11 +332,11 @@ const Dashboard = () => {
                         {order.user?.name || order.customer}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${order.totalAmount || order.amount}
+                        ${order.total || order.totalAmount || order.amount}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status)}`}>
-                          {order.status}
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.orderStatus || order.status)}`}>
+                          {order.orderStatus || order.status}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

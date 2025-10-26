@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { Upload, X, Plus, Loader, User, Store, Package } from 'lucide-react';
+import { Upload, X, Plus, Loader, Store, Package } from 'lucide-react';
 import { toast } from 'react-toastify';
+import { useAdminAuth } from '../context/AdminAuthContext';
 
 const Add = () => {
+  const { admin } = useAdminAuth();
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStartTime, setUploadStartTime] = useState(null);
@@ -26,11 +28,6 @@ const Add = () => {
       width: '',
       depth: ''
     }
-  });
-
-  const [sellerData, setSellerData] = useState({
-    name: '',
-    phone: ''
   });
 
   const [selectedSize, setSelectedSize] = useState('small');
@@ -84,14 +81,6 @@ const Add = () => {
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
-    }));
-  };
-
-  const handleSellerChange = (e) => {
-    const { name, value } = e.target;
-    setSellerData(prev => ({
-      ...prev,
-      [name]: value
     }));
   };
 
@@ -461,11 +450,6 @@ const Add = () => {
       }
     }
 
-    if (!sellerData.name || !sellerData.phone) {
-      toast.error('Please fill in all required seller details');
-      return;
-    }
-
     if (!images.length) {
       toast.error('Please add at least one product file (image or 3D model)');
       return;
@@ -532,10 +516,10 @@ const Add = () => {
         submitData.append('dimensions', JSON.stringify(formData.dimensions));
       }
 
-      // Append seller data with correct structure
+      // Append seller data with correct structure (from logged-in admin)
       const sellerDataFormatted = {
-        name: sellerData.name,
-        contact: sellerData.phone
+        name: admin?.name || 'Unknown',
+        contact: admin?.phone || 'No contact'
       };
       submitData.append('seller', JSON.stringify(sellerDataFormatted));
 
@@ -670,10 +654,6 @@ const Add = () => {
             depth: ''
           }
         });
-        setSellerData({
-          name: '',
-          phone: ''
-        });
         setImages([]);
         
         // Reset upload progress states
@@ -722,45 +702,6 @@ const Add = () => {
           </h1>
           
           <form onSubmit={handleSubmit} className="space-y-8">
-            {/* Seller Information Section */}
-            <div className="bg-gradient-to-r from-pink-50 to-purple-50 p-6 rounded-lg border border-pink-200">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <User className="w-5 h-5 text-pink-600" />
-                Seller Information
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Seller Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={sellerData.name}
-                    onChange={handleSellerChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                    placeholder="Enter seller's full name"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Phone Number *
-                  </label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={sellerData.phone}
-                    onChange={handleSellerChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                    placeholder="+1 (555) 123-4567"
-                    required
-                  />
-                </div>
-              </div>
-            </div>
-
             {/* Product Images */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">

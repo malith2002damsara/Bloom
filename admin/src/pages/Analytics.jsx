@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, DollarSign, Users, Package, ShoppingBag, Calendar, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { BarChart3, TrendingUp, DollarSign, Package, ShoppingBag, Calendar, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { toast } from 'react-toastify';
 import adminApi from '../utils/api';
 
 const Analytics = () => {
   const [timeRange, setTimeRange] = useState('7d');
   const [analyticsData, setAnalyticsData] = useState(null);
+  const [topProducts, setTopProducts] = useState([]);
+  const [salesData, setSalesData] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const timeRanges = [
@@ -17,6 +19,8 @@ const Analytics = () => {
 
   useEffect(() => {
     fetchAnalytics();
+    fetchTopProducts();
+    fetchSalesData();
   }, [timeRange]);
 
   const fetchAnalytics = async () => {
@@ -26,6 +30,8 @@ const Analytics = () => {
       
       if (response.success) {
         setAnalyticsData(response.data);
+      } else {
+        toast.error('Failed to fetch analytics data');
       }
     } catch (error) {
       console.error('Analytics fetch error:', error);
@@ -33,57 +39,107 @@ const Analytics = () => {
       // Check if it's an authentication error
       if (error.message.includes('Invalid token') || error.message.includes('401')) {
         toast.error('Please login to access analytics data');
-        // You could redirect to login here if needed
-        // window.location.href = '/login';
       } else {
-        // Fallback to demo data for other errors
-        const demoData = {
-          revenue: { value: 12450, change: 12.5, positive: true },
-          orders: { value: 156, change: 8.2, positive: true },
-          customers: { value: 124, change: -2.1, positive: false },
-          products: { value: 48, change: 4.3, positive: true }
-        };
-        
-        setAnalyticsData(demoData);
-        toast.warning('Using demo data - Please check your connection');
+        toast.error('Failed to load analytics data');
       }
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchTopProducts = async () => {
+    try {
+      const response = await adminApi.getAdminProducts();
+      if (response.success && response.data.products) {
+        // Sort products by soldCount or calculate from orders
+        const sorted = response.data.products
+          .filter(p => p.soldCount && p.soldCount > 0)
+          .sort((a, b) => (b.soldCount || 0) - (a.soldCount || 0))
+          .slice(0, 5)
+          .map(product => ({
+            name: product.name,
+            sales: product.soldCount || 0,
+            revenue: (product.soldCount || 0) * (product.price || 0)
+          }));
+        
+        setTopProducts(sorted);
+      }
+    } catch (error) {
+      console.error('Error fetching top products:', error);
+    }
+  };
+
+  const fetchSalesData = async () => {
+    try {
+      const response = await adminApi.getOrders({ limit: 100 });
+      if (response.success && response.data.orders) {
+        const orders = response.data.orders;
+        
+        // Generate sales data based on time range
+        const days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
+        const data = generateSalesDataForRange(orders, days);
+        setSalesData(data);
+      }
+    } catch (error) {
+      console.error('Error fetching sales data:', error);
+    }
+  };
+
+  const generateSalesDataForRange = (orders, days) => {
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const today = new Date();
+    const data = [];
+
+    // For 7 days, show daily data
+    if (days === 7) {
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const dayName = dayNames[date.getDay()];
+        
+        const dayOrders = orders.filter(order => {
+          const orderDate = new Date(order.createdAt);
+          return orderDate.toDateString() === date.toDateString();
+        });
+
+        const sales = dayOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+        
+        data.push({
+          day: dayName,
+          sales: Math.round(sales * 100) / 100
+        });
+      }
+    } else {
+      // For longer ranges, group by weeks
+      const weeks = Math.ceil(days / 7);
+      for (let i = weeks - 1; i >= 0; i--) {
+        const endDate = new Date(today);
+        endDate.setDate(endDate.getDate() - (i * 7));
+        const startDate = new Date(endDate);
+        startDate.setDate(startDate.getDate() - 6);
+
+        const weekOrders = orders.filter(order => {
+          const orderDate = new Date(order.createdAt);
+          return orderDate >= startDate && orderDate <= endDate;
+        });
+
+        const sales = weekOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+        
+        data.push({
+          day: `Week ${weeks - i}`,
+          sales: Math.round(sales * 100) / 100
+        });
+      }
+    }
+
+    return data;
+  };
+
   const currentStats = analyticsData || {
     revenue: { value: 0, change: 0, positive: true },
     orders: { value: 0, change: 0, positive: true },
-    customers: { value: 0, change: 0, positive: true },
     products: { value: 0, change: 0, positive: true }
   };
-
-  const topProducts = [
-    { name: 'Classic Graduation Bouquet', sales: 45, revenue: 2249.55 },
-    { name: 'Eternal Memories Bouquet', sales: 38, revenue: 2279.62 },
-    { name: 'Scholar Bear with Bouquet', sales: 32, revenue: 2239.68 },
-    { name: 'Personalized Graduation Package', sales: 28, revenue: 2519.72 },
-    { name: 'Deluxe Rose Arrangement', sales: 25, revenue: 1999.75 }
-  ];
-
-  const recentActivity = [
-    { type: 'order', message: 'New order #12345 placed', time: '2 minutes ago', icon: ShoppingBag },
-    { type: 'product', message: 'Product "Summer Roses" updated', time: '15 minutes ago', icon: Package },
-    { type: 'user', message: 'New customer registered', time: '1 hour ago', icon: Users },
-    { type: 'order', message: 'Order #12340 delivered', time: '2 hours ago', icon: ShoppingBag },
-    { type: 'product', message: 'Low stock alert for "Graduate Bear"', time: '3 hours ago', icon: Package }
-  ];
-
-  const salesData = [
-    { day: 'Mon', sales: 2400 },
-    { day: 'Tue', sales: 1398 },
-    { day: 'Wed', sales: 9800 },
-    { day: 'Thu', sales: 3908 },
-    { day: 'Fri', sales: 4800 },
-    { day: 'Sat', sales: 3800 },
-    { day: 'Sun', sales: 4300 }
-  ];
 
   const StatCard = ({ title, value, change, positive, icon: Icon, prefix = '' }) => (
     <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
@@ -125,8 +181,15 @@ const Analytics = () => {
         </div>
       </div>
 
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="w-8 h-8 border-4 border-pink-600 border-t-transparent rounded-full animate-spin"></div>
+          <span className="ml-3 text-gray-600">Loading analytics data...</span>
+        </div>
+      ) : (
+        <>
+          {/* Key Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
         <StatCard
           title="Total Revenue"
           value={currentStats.revenue.value}
@@ -143,13 +206,6 @@ const Analytics = () => {
           icon={ShoppingBag}
         />
         <StatCard
-          title="New Customers"
-          value={currentStats.customers.value}
-          change={currentStats.customers.change}
-          positive={currentStats.customers.positive}
-          icon={Users}
-        />
-        <StatCard
           title="Total Products"
           value={currentStats.products.value}
           change={currentStats.products.change}
@@ -158,51 +214,41 @@ const Analytics = () => {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 gap-6 mb-8">
         {/* Sales Chart */}
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-gray-900">Sales Overview</h3>
             <div className="flex items-center space-x-2 text-sm text-gray-600">
               <BarChart3 className="w-4 h-4" />
-              <span>Weekly Sales</span>
+              <span>{timeRange === '7d' ? 'Daily' : 'Weekly'} Sales</span>
             </div>
           </div>
           
           {/* Simple Bar Chart */}
-          <div className="space-y-4">
-            {salesData.map((item, index) => (
-              <div key={index} className="flex items-center space-x-4">
-                <div className="w-8 text-sm text-gray-600">{item.day}</div>
-                <div className="flex-1 bg-gray-200 rounded-full h-6 relative">
-                  <div
-                    className="bg-blue-600 h-6 rounded-full flex items-center justify-end pr-2"
-                    style={{ width: `${(item.sales / Math.max(...salesData.map(d => d.sales))) * 100}%` }}
-                  >
-                    <span className="text-white text-xs font-medium">${item.sales}</span>
+          {salesData.length > 0 ? (
+            <div className="space-y-4">
+              {salesData.map((item, index) => (
+                <div key={index} className="flex items-center space-x-4">
+                  <div className="w-16 text-sm text-gray-600">{item.day}</div>
+                  <div className="flex-1 bg-gray-200 rounded-full h-6 relative">
+                    <div
+                      className="bg-blue-600 h-6 rounded-full flex items-center justify-end pr-2"
+                      style={{ width: `${salesData.length > 0 ? (item.sales / Math.max(...salesData.map(d => d.sales), 1)) * 100 : 0}%` }}
+                    >
+                      {item.sales > 0 && (
+                        <span className="text-white text-xs font-medium">${item.sales}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Recent Activity */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-6">Recent Activity</h3>
-          <div className="space-y-4">
-            {recentActivity.map((activity, index) => (
-              <div key={index} className="flex items-start space-x-3">
-                <div className="p-2 bg-blue-50 rounded-lg">
-                  <activity.icon className="w-4 h-4 text-blue-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-900">{activity.message}</p>
-                  <p className="text-xs text-gray-500 mt-1">{activity.time}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              No sales data available for this period
+            </div>
+          )}
         </div>
       </div>
 
@@ -210,51 +256,61 @@ const Analytics = () => {
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold text-gray-900">Top Selling Products</h3>
-          <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">View All</button>
         </div>
         
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Product</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Sales</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Revenue</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Performance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {topProducts.map((product, index) => (
-                <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3 px-4">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                        <span className="text-blue-600 font-semibold text-sm">#{index + 1}</span>
-                      </div>
-                      <span className="font-medium text-gray-900">{product.name}</span>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-gray-700">{product.sales} units</td>
-                  <td className="py-3 px-4 text-gray-700">${product.revenue.toFixed(2)}</td>
-                  <td className="py-3 px-4">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-16 bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-green-500 h-2 rounded-full"
-                          style={{ width: `${(product.sales / Math.max(...topProducts.map(p => p.sales))) * 100}%` }}
-                        ></div>
-                      </div>
-                      <span className="text-sm text-gray-600">
-                        {Math.round((product.sales / Math.max(...topProducts.map(p => p.sales))) * 100)}%
-                      </span>
-                    </div>
-                  </td>
+        {topProducts.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Product</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Sales</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Revenue</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Performance</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {topProducts.map((product, index) => {
+                  const maxSales = Math.max(...topProducts.map(p => p.sales), 1);
+                  return (
+                    <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                            <span className="text-blue-600 font-semibold text-sm">#{index + 1}</span>
+                          </div>
+                          <span className="font-medium text-gray-900">{product.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-gray-700">{product.sales} units</td>
+                      <td className="py-3 px-4 text-gray-700">${product.revenue.toFixed(2)}</td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-16 bg-gray-200 rounded-full h-2">
+                            <div
+                              className="bg-green-500 h-2 rounded-full"
+                              style={{ width: `${(product.sales / maxSales) * 100}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-sm text-gray-600">
+                            {Math.round((product.sales / maxSales) * 100)}%
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            No product sales data available
+          </div>
+        )}
       </div>
+        </>
+      )}
     </div>
   );
 };

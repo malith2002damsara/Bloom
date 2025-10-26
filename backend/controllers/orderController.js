@@ -1,5 +1,6 @@
 const Order = require('../models/Order');
 const { validationResult } = require('express-validator');
+const { createOrderNotification } = require('./notificationController');
 
 // @desc    Create new order
 // @route   POST /api/orders
@@ -46,6 +47,9 @@ const createOrder = async (req, res) => {
     await order.save();
     console.log('Order saved successfully:', order._id);
 
+    // Create notifications for admins whose products are in this order
+    await createOrderNotification(order);
+
     res.status(201).json({
       success: true,
       message: 'Order created successfully',
@@ -69,16 +73,36 @@ const createOrder = async (req, res) => {
 // @access  Private
 const getUserOrders = async (req, res) => {
   try {
+    console.log('=== GET USER ORDERS REQUEST ===');
+    console.log('Authenticated User ID:', req.user?._id);
+    console.log('User Role:', req.user?.role);
+    console.log('User Email:', req.user?.email);
+    
+    // Security check: Ensure user is authenticated
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+    }
+
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const orders = await Order.find({ userId: req.user._id })
+    // IMPORTANT: Only fetch orders belonging to the authenticated user
+    const query = { userId: req.user._id };
+    console.log('Fetching orders with query:', query);
+
+    const orders = await Order.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
-    const total = await Order.countDocuments({ userId: req.user._id });
+    const total = await Order.countDocuments(query);
+
+    console.log(`Found ${orders.length} orders for user ${req.user._id}`);
+    console.log(`Total orders for this user: ${total}`);
 
     res.json({
       success: true,
@@ -109,17 +133,25 @@ const getUserOrders = async (req, res) => {
 // @access  Private
 const getOrderById = async (req, res) => {
   try {
+    console.log('=== GET ORDER BY ID REQUEST ===');
+    console.log('Authenticated User ID:', req.user?._id);
+    console.log('Requested Order ID:', req.params.id);
+    
+    // IMPORTANT: Only allow users to view their own orders
     const order = await Order.findOne({
       _id: req.params.id,
-      userId: req.user._id
+      userId: req.user._id  // This ensures users can only see their own orders
     });
 
     if (!order) {
+      console.log('Order not found or user does not have access');
       return res.status(404).json({
         success: false,
         message: 'Order not found'
       });
     }
+
+    console.log('Order found for user:', order._id);
 
     res.json({
       success: true,
@@ -194,19 +226,49 @@ const getAllOrders = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
     const status = req.query.status;
+    const adminId = req.user._id;
+    const isSuperAdmin = req.user.role === 'superadmin';
 
-    let query = {};
-    if (status) {
-      query.orderStatus = status;
+    // If admin, get only orders containing their products
+    let orders;
+    let total;
+
+    if (isSuperAdmin) {
+      // SuperAdmin sees all orders
+      let query = {};
+      if (status) {
+        query.orderStatus = status;
+      }
+
+      orders = await Order.find(query)
+        .populate('userId', 'name email phone')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
+
+      total = await Order.countDocuments(query);
+    } else {
+      // Admin sees only orders with their products
+      const Product = require('../models/Product');
+      const adminProducts = await Product.find({ adminId: adminId }).select('_id');
+      const productIds = adminProducts.map(p => p._id.toString());
+
+      let query = {
+        'items.productId': { $in: productIds }
+      };
+      
+      if (status) {
+        query.orderStatus = status;
+      }
+
+      orders = await Order.find(query)
+        .populate('userId', 'name email phone')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
+
+      total = await Order.countDocuments(query);
     }
-
-    const orders = await Order.find(query)
-      .populate('userId', 'name email phone')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
-
-    const total = await Order.countDocuments(query);
 
     res.json({
       success: true,
@@ -238,6 +300,8 @@ const getAllOrders = async (req, res) => {
 const updateOrderStatus = async (req, res) => {
   try {
     const { orderStatus, trackingNumber } = req.body;
+    const adminId = req.user._id;
+    const isSuperAdmin = req.user.role === 'superadmin';
 
     const order = await Order.findById(req.params.id);
 
@@ -246,6 +310,25 @@ const updateOrderStatus = async (req, res) => {
         success: false,
         message: 'Order not found'
       });
+    }
+
+    // Verify admin has permission to update this order (unless superadmin)
+    if (!isSuperAdmin) {
+      const Product = require('../models/Product');
+      const adminProducts = await Product.find({ adminId: adminId }).select('_id');
+      const productIds = adminProducts.map(p => p._id.toString());
+      
+      // Check if order contains at least one of admin's products
+      const hasAdminProduct = order.items.some(item => 
+        productIds.includes(item.productId)
+      );
+      
+      if (!hasAdminProduct) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have permission to update this order'
+        });
+      }
     }
 
     if (orderStatus) order.orderStatus = orderStatus;

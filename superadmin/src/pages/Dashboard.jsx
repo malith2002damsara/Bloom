@@ -1,14 +1,32 @@
 import React, { useState, useEffect } from 'react';
+import { 
+  Users, 
+  DollarSign, 
+  ShoppingBag, 
+  Package,
+  TrendingUp,
+  CheckCircle,
+  XCircle,
+  AlertCircle
+} from 'lucide-react';
+import { toast } from 'react-toastify';
 import { superAdminAPI } from '../utils/api';
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
     totalAdmins: 0,
-    totalUsers: 0,
+    activeAdmins: 0,
+    inactiveAdmins: 0,
+    totalProducts: 0,
     totalOrders: 0,
-    totalRevenue: 0
+    totalUsers: 0,
+    totalRevenue: 0,
+    pendingOrders: 0,
+    recentAdmins: [],
+    recentTransactions: []
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchDashboardStats();
@@ -16,149 +34,247 @@ const Dashboard = () => {
 
   const fetchDashboardStats = async () => {
     try {
+      setError(null);
       const response = await superAdminAPI.getDashboardStats();
       if (response.success) {
         setStats(response.data);
+      } else {
+        throw new Error(response.message || 'Failed to fetch dashboard statistics');
       }
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
-      // Set some default mock data for demo
-      setStats({
-        totalAdmins: 12,
-        totalUsers: 4,
-        totalOrders: 26,
-        totalRevenue: 0
-      });
+      setError(error.message || 'Failed to load dashboard statistics');
+      // Use demo data as fallback
+      const demoStats = {
+        totalAdmins: 0,
+        activeAdmins: 0,
+        inactiveAdmins: 0,
+        totalProducts: 0,
+        totalOrders: 0,
+        totalUsers: 0,
+        totalRevenue: 0,
+        pendingOrders: 0,
+        recentAdmins: [],
+        recentTransactions: []
+      };
+      setStats(demoStats);
+      toast.error('Failed to load dashboard statistics. Please check your connection.');
     } finally {
       setLoading(false);
     }
   };
 
-  const StatCard = ({ title, value, icon, change }) => (
-    <div className="stat-card">
-      <div className="stat-title">{title}</div>
-      <div className="stat-value">{loading ? '...' : value}</div>
-      {change && (
-        <div className={`stat-change ${change > 0 ? 'positive' : 'negative'}`}>
-          <i className={`fas fa-arrow-${change > 0 ? 'up' : 'down'}`}></i>
-          {change > 0 ? '+' : ''}{change}% from last month
+  const StatCard = ({ title, value, icon: Icon, color, change }) => (
+    <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 hover:shadow-md transition-shadow">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-600">{title}</p>
+          <p className="text-2xl font-bold text-gray-900 mt-2">
+            {loading ? (
+              <div className="w-16 h-8 bg-gray-200 animate-pulse rounded"></div>
+            ) : (
+              value
+            )}
+          </p>
+          {change && !loading && (
+            <p className={`text-sm mt-2 flex items-center ${change > 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <TrendingUp className="w-4 h-4 mr-1" />
+              {change > 0 ? '+' : ''}{change}% from last month
+            </p>
+          )}
         </div>
-      )}
+        <div className={`p-3 rounded-full ${color}`}>
+          <Icon className="w-6 h-6 text-white" />
+        </div>
+      </div>
     </div>
   );
 
   return (
-    <>
-      <div className="dashboard-header">
-        <div>
-          <h1 className="dashboard-title">Dashboard</h1>
-          <p className="welcome-text">Welcome back! Here's what's happening with your store.</p>
-        </div>
+    <div className="p-6">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+        <p className="text-gray-600 mt-2">Welcome back! Here's an overview of your system.</p>
       </div>
+
+      {/* Error Alert */}
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start">
+          <AlertCircle className="w-5 h-5 text-red-600 mr-3 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm text-red-800 font-medium">Failed to load dashboard data</p>
+            <p className="text-xs text-red-700 mt-1">{error}</p>
+            <button
+              onClick={fetchDashboardStats}
+              className="text-xs text-red-600 hover:text-red-800 font-medium mt-2 underline"
+            >
+              Try again
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Stats Grid */}
-      <div className="stats-grid">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
         <StatCard
-          title="Total Sales"
-          value="$0"
+          title="Total Admins"
+          value={stats.totalAdmins}
+          icon={Users}
+          color="bg-purple-500"
+        />
+        <StatCard
+          title="Active Admins"
+          value={stats.activeAdmins}
+          icon={CheckCircle}
+          color="bg-green-500"
+        />
+        <StatCard
+          title="Total Revenue"
+          value={`$${stats.totalRevenue.toLocaleString()}`}
+          icon={DollarSign}
+          color="bg-blue-500"
           change={12.5}
         />
-        
         <StatCard
           title="Total Orders"
-          value="26"
+          value={stats.totalOrders}
+          icon={ShoppingBag}
+          color="bg-orange-500"
           change={8.2}
         />
+      </div>
+
+      {/* Secondary Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Total Products</p>
+              <p className="text-2xl font-bold text-gray-900 mt-2">
+                {loading ? '...' : stats.totalProducts}
+              </p>
+            </div>
+            <Package className="w-8 h-8 text-indigo-600" />
+          </div>
+        </div>
         
-        <StatCard
-          title="Total Products"
-          value="8"
-          change={null}
-        />
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Total Users</p>
+              <p className="text-2xl font-bold text-gray-900 mt-2">
+                {loading ? '...' : stats.totalUsers}
+              </p>
+            </div>
+            <Users className="w-8 h-8 text-cyan-600" />
+          </div>
+        </div>
         
-        <StatCard
-          title="Total Users"
-          value="4"
-          change={5.1}
-        />
-      </div>
-
-      {/* Pending Orders Section */}
-      <div className="dashboard-section">
-        <div className="section-header">
-          <h2 className="section-title">Pending Orders</h2>
-          <span className="alert-badge">You have 0 orders waiting for processing</span>
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Inactive Admins</p>
+              <p className="text-2xl font-bold text-gray-900 mt-2">
+                {loading ? '...' : stats.inactiveAdmins}
+              </p>
+            </div>
+            <XCircle className="w-8 h-8 text-red-600" />
+          </div>
         </div>
-        <p>All orders have been processed. No pending orders at this time.</p>
       </div>
 
-      {/* Recent Orders Section */}
-      <div className="dashboard-section">
-        <div className="section-header">
-          <h2 className="section-title">Recent Orders</h2>
-          <a href="#" className="view-all">View All</a>
+      {/* Recent Admins and Transactions */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Recent Admins */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+          <div className="p-6 border-b border-gray-100">
+            <h2 className="text-xl font-semibold text-gray-900">Recent Admins</h2>
+          </div>
+          <div className="p-6">
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <div className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : stats.recentAdmins && stats.recentAdmins.length > 0 ? (
+              <div className="space-y-4">
+                {stats.recentAdmins.map((admin, index) => (
+                  <div key={index} className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                        <span className="text-purple-600 font-medium text-sm">
+                          {admin.name?.charAt(0)}
+                        </span>
+                      </div>
+                      <div className="ml-3">
+                        <p className="text-sm font-medium text-gray-900">{admin.name}</p>
+                        <p className="text-xs text-gray-500">{admin.email}</p>
+                      </div>
+                    </div>
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      admin.isActive 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {admin.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-gray-500 py-8">No recent admins</p>
+            )}
+          </div>
         </div>
 
-        <table className="orders-table">
-          <thead>
-            <tr>
-              <th>ORDER ID</th>
-              <th>CUSTOMER</th>
-              <th>AMOUNT</th>
-              <th>STATUS</th>
-              <th>DATE</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>6895aa508e8a1347f460b61</td>
-              <td>
-                <div className="user-info">
-                  <div className="user-avatar">J</div>
-                  John Doe
-                </div>
-              </td>
-              <td>$120.00</td>
-              <td><span className="status-badge status-completed">Completed</span></td>
-              <td>08/08/2025</td>
-            </tr>
-            <tr>
-              <td>66956526ffeae9433b749570</td>
-              <td>
-                <div className="user-info">
-                  <div className="user-avatar">S</div>
-                  Sarah Smith
-                </div>
-              </td>
-              <td>$85.50</td>
-              <td><span className="status-badge status-completed">Completed</span></td>
-              <td>08/08/2025</td>
-            </tr>
-            <tr>
-              <td>6692ffdblc7f7038038186ca</td>
-              <td>
-                <div className="user-info">
-                  <div className="user-avatar">M</div>
-                  Michael Brown
-                </div>
-              </td>
-              <td>$210.75</td>
-              <td><span className="status-badge status-completed">Completed</span></td>
-              <td>06/08/2025</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {/* Low Stock Alert Section */}
-      <div className="dashboard-section">
-        <div className="section-header">
-          <h2 className="section-title">Low Stock Alert</h2>
-          <span className="alert-badge">8 products are running low on stock</span>
+        {/* Recent Transactions */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+          <div className="p-6 border-b border-gray-100">
+            <h2 className="text-xl font-semibold text-gray-900">Recent Transactions</h2>
+          </div>
+          <div className="p-6">
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <div className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : stats.recentTransactions && stats.recentTransactions.length > 0 ? (
+              <div className="space-y-4">
+                {stats.recentTransactions.map((transaction, index) => (
+                  <div key={index} className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        ${transaction.total || 0}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {transaction.userId?.name || transaction.customer || 'Customer'}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        transaction.orderStatus === 'delivered' 
+                          ? 'bg-green-100 text-green-800' 
+                          : transaction.orderStatus === 'pending'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : transaction.orderStatus === 'cancelled'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {transaction.orderStatus}
+                      </span>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {transaction.date || new Date(transaction.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-gray-500 py-8">No recent transactions</p>
+            )}
+          </div>
         </div>
-        <p>Check your inventory and restock these items to avoid running out.</p>
       </div>
-    </>
+    </div>
   );
 };
 

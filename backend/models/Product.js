@@ -189,6 +189,11 @@ const productSchema = new mongoose.Schema({
       trim: true
     }
   },
+  adminId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Admin',
+    required: true
+  },
   inStock: {
     type: Boolean,
     default: true
@@ -234,6 +239,8 @@ productSchema.index({ category: 1, status: 1 });
 productSchema.index({ name: 'text', description: 'text' });
 productSchema.index({ price: 1 });
 productSchema.index({ 'seller.name': 1 });
+productSchema.index({ adminId: 1 }); // Index for admin filtering
+productSchema.index({ adminId: 1, category: 1 }); // Compound index for better performance
 
 // Update status based on stock
 productSchema.pre('save', function(next) {
