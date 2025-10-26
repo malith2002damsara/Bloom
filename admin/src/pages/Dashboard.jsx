@@ -70,9 +70,7 @@ const Dashboard = () => {
       if (error.message.includes('Invalid token') || error.message.includes('401')) {
         toast.error('Please login to access dashboard data');
       } else {
-        // Fallback to demo data
-        setDemoData();
-        toast.warning('Using demo data - Please check your connection');
+        toast.error('Failed to load dashboard data. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -140,45 +138,6 @@ const Dashboard = () => {
       { name: 'Bears', value: categories.bears, total },
       { name: 'Other', value: categories.other, total },
     ].filter(item => item.value > 0);
-  };
-
-  const setDemoData = () => {
-    const demoStats = {
-      totalSales: 15420,
-      totalOrders: 342,
-      totalProducts: 48,
-      pendingOrders: 23,
-      lowStock: 8
-    };
-
-    const demoOrders = [
-      { _id: '#12345', customerInfo: { name: 'John Doe' }, total: 89.99, orderStatus: 'completed', createdAt: new Date().toISOString() },
-      { _id: '#12346', customerInfo: { name: 'Jane Smith' }, total: 156.50, orderStatus: 'pending', createdAt: new Date().toISOString() },
-      { _id: '#12347', customerInfo: { name: 'Mike Johnson' }, total: 75.25, orderStatus: 'processing', createdAt: new Date().toISOString() },
-    ];
-
-    const demoSalesData = [
-      { day: 'Mon', sales: 2400, orders: 12 },
-      { day: 'Tue', sales: 1398, orders: 8 },
-      { day: 'Wed', sales: 9800, orders: 24 },
-      { day: 'Thu', sales: 3908, orders: 16 },
-      { day: 'Fri', sales: 4800, orders: 19 },
-      { day: 'Sat', sales: 3800, orders: 15 },
-      { day: 'Sun', sales: 4300, orders: 17 },
-    ];
-
-    const demoCategoryData = [
-      { name: 'Fresh Flowers', value: 15, total: 48 },
-      { name: 'Artificial', value: 12, total: 48 },
-      { name: 'Mixed', value: 10, total: 48 },
-      { name: 'Bears', value: 8, total: 48 },
-      { name: 'Other', value: 3, total: 48 },
-    ];
-
-    setStats(demoStats);
-    setRecentOrders(demoOrders);
-    setSalesData(demoSalesData);
-    setCategoryData(demoCategoryData);
   };
 
   const StatCard = ({ title, value, icon: Icon, color, change }) => (

@@ -1,4 +1,5 @@
 const Product = require('../models/Product');
+const Admin = require('../models/Admin');
 
 // @desc    Get all products
 // @route   GET /api/products
@@ -7,11 +8,42 @@ const getProducts = async (req, res) => {
   try {
     const { category, search, sortBy, page = 1, limit = 20, adminId } = req.query;
     
+    console.log('=== GET PRODUCTS REQUEST ===');
+    console.log('Query params:', { category, search, sortBy, page, limit, adminId });
+    
     // Build query object
     let query = {};
 
-    // Filter by admin (for admin users to see only their products)
+    // IMPORTANT: Only show products from ACTIVE admins (exclude deactivated admins)
+    // Get all active admin IDs
+    const activeAdmins = await Admin.find({ isActive: true }).select('_id');
+    const activeAdminIds = activeAdmins.map(admin => admin._id);
+    
+    console.log(`Found ${activeAdmins.length} active admins`);
+    
+    // Filter products to only show those from active admins
+    query.adminId = { $in: activeAdminIds };
+
+    // Filter by specific admin (for admin users to see only their products)
     if (adminId) {
+      // Check if this specific admin is active
+      const isAdminActive = activeAdminIds.some(id => id.toString() === adminId);
+      if (!isAdminActive) {
+        console.log(`Admin ${adminId} is not active - returning no products`);
+        return res.json({
+          success: true,
+          message: 'No products found',
+          data: {
+            products: [],
+            pagination: {
+              page: parseInt(page),
+              limit: parseInt(limit),
+              total: 0,
+              pages: 0
+            }
+          }
+        });
+      }
       query.adminId = adminId;
     }
 
@@ -58,6 +90,8 @@ const getProducts = async (req, res) => {
     const limitNumber = parseInt(limit);
     const skip = (pageNumber - 1) * limitNumber;
 
+    console.log('Final query:', JSON.stringify(query));
+
     // Execute query with pagination
     const [products, totalCount] = await Promise.all([
       Product.find(query)
@@ -67,6 +101,8 @@ const getProducts = async (req, res) => {
         .lean(),
       Product.countDocuments(query)
     ]);
+
+    console.log(`Returned ${products.length} products from active admins (total: ${totalCount})`);
 
     res.json({
       success: true,
@@ -99,6 +135,9 @@ const getProductById = async (req, res) => {
   try {
     const productId = req.params.id;
     
+    console.log('=== GET PRODUCT BY ID ===');
+    console.log('Product ID:', productId);
+    
     // Validate ObjectId format
     if (!productId.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({
@@ -115,6 +154,19 @@ const getProductById = async (req, res) => {
         message: 'Product not found'
       });
     }
+
+    // IMPORTANT: Check if the product's admin is active
+    const admin = await Admin.findById(product.adminId);
+    
+    if (!admin || !admin.isActive) {
+      console.log(`Product ${productId} belongs to inactive admin - not accessible`);
+      return res.status(404).json({
+        success: false,
+        message: 'Product not available'
+      });
+    }
+
+    console.log(`Product ${productId} from active admin ${admin.name} - accessible`);
 
     res.json({
       success: true,
@@ -139,8 +191,21 @@ const getProductById = async (req, res) => {
 // @access  Public
 const getCategories = async (req, res) => {
   try {
-    // Get category counts using aggregation
+    console.log('=== GET CATEGORIES ===');
+    
+    // IMPORTANT: Only count products from ACTIVE admins
+    const activeAdmins = await Admin.find({ isActive: true }).select('_id');
+    const activeAdminIds = activeAdmins.map(admin => admin._id);
+    
+    console.log(`Counting products from ${activeAdmins.length} active admins`);
+
+    // Get category counts using aggregation (only from active admins)
     const categoryCounts = await Product.aggregate([
+      {
+        $match: {
+          adminId: { $in: activeAdminIds }
+        }
+      },
       {
         $group: {
           _id: '$category',
@@ -149,8 +214,10 @@ const getCategories = async (req, res) => {
       }
     ]);
 
-    // Get total count
-    const totalCount = await Product.countDocuments();
+    // Get total count (only from active admins)
+    const totalCount = await Product.countDocuments({
+      adminId: { $in: activeAdminIds }
+    });
 
     // Build categories array
     const categoryMap = categoryCounts.reduce((acc, item) => {
@@ -165,6 +232,8 @@ const getCategories = async (req, res) => {
       { id: 'bears', name: 'Graduation Bears', count: categoryMap.bears || 0 },
       { id: 'mixed', name: 'Mixed Arrangements', count: categoryMap.mixed || 0 }
     ];
+
+    console.log('Category counts:', categories);
 
     res.json({
       success: true,

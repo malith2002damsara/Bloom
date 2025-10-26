@@ -44,21 +44,7 @@ const Dashboard = () => {
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
       setError(error.message || 'Failed to load dashboard statistics');
-      // Use demo data as fallback
-      const demoStats = {
-        totalAdmins: 0,
-        activeAdmins: 0,
-        inactiveAdmins: 0,
-        totalProducts: 0,
-        totalOrders: 0,
-        totalUsers: 0,
-        totalRevenue: 0,
-        pendingOrders: 0,
-        recentAdmins: [],
-        recentTransactions: []
-      };
-      setStats(demoStats);
-      toast.error('Failed to load dashboard statistics. Please check your connection.');
+      toast.error('Failed to load dashboard statistics. Please try again.');
     } finally {
       setLoading(false);
     }
