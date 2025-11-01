@@ -518,6 +518,7 @@ const getDashboardStats = async (req, res) => {
     let pendingOrders = 0;
     let recentAdmins = [];
     let recentTransactions = [];
+    let adminWiseStats = [];
 
     // Admin counts
     try {
@@ -580,6 +581,72 @@ const getDashboardStats = async (req, res) => {
       console.error('Error fetching recent transactions:', error.message);
     }
 
+    // Admin-wise statistics
+    try {
+      const admins = await Admin.find({ isActive: true }).select('_id name email');
+      
+      adminWiseStats = await Promise.all(admins.map(async (admin) => {
+        // Get product counts by status for this admin
+        const productStats = await Product.aggregate([
+          { $match: { adminId: admin._id } },
+          {
+            $group: {
+              _id: '$status',
+              count: { $sum: 1 }
+            }
+          }
+        ]);
+
+        const productCounts = {
+          active: 0,
+          inactive: 0,
+          out_of_stock: 0,
+          total: 0
+        };
+
+        productStats.forEach(stat => {
+          productCounts[stat._id] = stat.count;
+          productCounts.total += stat.count;
+        });
+
+        // Get order count for this admin
+        const orderCount = await Order.countDocuments({
+          'items.adminId': admin._id
+        });
+
+        // Get revenue for this admin
+        const revenueData = await Order.aggregate([
+          { 
+            $match: { 
+              'items.adminId': admin._id,
+              orderStatus: { $in: ['delivered', 'completed'] }
+            } 
+          },
+          { $unwind: '$items' },
+          { $match: { 'items.adminId': admin._id } },
+          {
+            $group: {
+              _id: null,
+              totalRevenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } }
+            }
+          }
+        ]);
+
+        const revenue = revenueData.length > 0 ? revenueData[0].totalRevenue : 0;
+
+        return {
+          adminId: admin._id,
+          adminName: admin.name,
+          adminEmail: admin.email,
+          products: productCounts,
+          orders: orderCount,
+          revenue: Math.round(revenue * 100) / 100
+        };
+      }));
+    } catch (error) {
+      console.error('Error fetching admin-wise stats:', error.message);
+    }
+
     res.json({
       success: true,
       data: {
@@ -592,7 +659,8 @@ const getDashboardStats = async (req, res) => {
         totalRevenue: Math.round(totalRevenue * 100) / 100,
         pendingOrders,
         recentAdmins,
-        recentTransactions
+        recentTransactions,
+        adminWiseStats
       }
     });
 

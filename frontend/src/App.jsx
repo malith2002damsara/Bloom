@@ -16,6 +16,7 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Profile from './pages/Profile';
 import MyOrders from './pages/MyOrders';
+import OrderDetails from './pages/OrderDetails';
 import OrderTracking from './pages/OrderTracking';
 import OrderConfirmation from './pages/OrderConfirmation';
 
@@ -37,6 +38,8 @@ function App() {
               <Route path="/signup" element={<Signup />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/my-orders" element={<MyOrders />} />
+              <Route path="/myorders" element={<MyOrders />} />
+              <Route path="/order/:orderId" element={<OrderDetails />} />
               <Route path="/orders/track" element={<OrderTracking />} />
               <Route path="/order-confirmation" element={<OrderConfirmation />} />
             </Routes>

@@ -55,11 +55,24 @@ class ApiService {
       console.log('API response data:', data);
 
       if (!response.ok) {
+        // Handle authentication errors (401)
+        if (response.status === 401) {
+          // Clear invalid token and user data
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          
+          // Dispatch custom event for auth context to handle
+          window.dispatchEvent(new CustomEvent('auth:logout', { detail: { reason: data.message } }));
+          
+          throw new Error(data.message || 'Authentication required. Please login again.');
+        }
+        
         // Handle validation errors with more detail
         if (data.errors && Array.isArray(data.errors)) {
           const errorMessages = data.errors.map(err => err.msg).join(', ');
           throw new Error(errorMessages);
         }
+        
         throw new Error(data.message || `HTTP error! status: ${response.status}`);
       }
 

@@ -9,13 +9,51 @@ export const AuthProvider = ({ children }) => {
 
   // Load user from localStorage on initial render
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-    
-    if (token && savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setIsLoading(false);
+    const initAuth = async () => {
+      const token = localStorage.getItem('token');
+      const savedUser = localStorage.getItem('user');
+      
+      if (token && savedUser) {
+        try {
+          // Verify token is still valid by making a profile request
+          const response = await apiService.getProfile();
+          if (response.success) {
+            setUser(response.data.user);
+            // Update localStorage with fresh data
+            localStorage.setItem('user', JSON.stringify(response.data.user));
+          } else {
+            // Invalid token, clear storage
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            setUser(null);
+          }
+        } catch (error) {
+          console.error('Token verification failed:', error);
+          // Token is invalid, clear storage
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setUser(null);
+        }
+      }
+      setIsLoading(false);
+    };
+
+    initAuth();
+  }, []);
+
+  // Listen for auth logout events from API service
+  useEffect(() => {
+    const handleLogout = (event) => {
+      console.log('Auth logout event received:', event.detail);
+      setUser(null);
+      // Optionally show a message to user
+      if (event.detail?.reason) {
+        console.warn('Logged out:', event.detail.reason);
+      }
+    };
+
+    window.addEventListener('auth:logout', handleLogout);
+    return () => window.removeEventListener('auth:logout', handleLogout);
   }, []);
 
   const login = async (email, password) => {

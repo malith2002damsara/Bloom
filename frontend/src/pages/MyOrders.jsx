@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import apiService from '../services/api';
+import { motion } from 'framer-motion';
 import { 
   FiPackage, 
   FiCalendar, 
@@ -19,25 +20,103 @@ import {
   FiEye,
   FiChevronDown,
   FiChevronUp,
-  FiInfo,
+  FiCamera,
   FiStar,
   FiHeart,
-  FiCamera
+  FiChevronLeft,
+  FiChevronRight
 } from 'react-icons/fi';
 
 const MyOrders = () => {
   const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  
+  // Server-side filtering and sorting
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    pages: 1,
+    hasNextPage: false,
+    hasPrevPage: false
+  });
+  
+  // UI state
   const [expandedOrders, setExpandedOrders] = useState(new Set());
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isLoadingProductDetails, setIsLoadingProductDetails] = useState(false);
+  
+  // Debounce search
+  const [searchDebounce, setSearchDebounce] = useState(null);
+
+  // Fetch orders with server-side filtering
+  const fetchOrders = async (page = currentPage) => {
+    try {
+      setLoading(true);
+      setError('');
+      console.log('=== FETCHING USER ORDERS (OPTIMIZED) ===');
+      console.log('Parameters:', { page, statusFilter, sortBy, searchTerm });
+      
+      // Check if user is authenticated before making request
+      if (!isAuthenticated) {
+        console.log('User not authenticated, skipping fetch');
+        setLoading(false);
+        return;
+      }
+      
+      const params = {
+        page,
+        limit: 20,
+        sortBy,
+      };
+      
+      if (statusFilter !== 'all') {
+        params.status = statusFilter;
+      }
+      
+      if (searchTerm.trim()) {
+        params.search = searchTerm.trim();
+      }
+      
+      const response = await apiService.getUserOrders(params);
+      console.log('API Response:', response);
+      
+      if (response.success) {
+        console.log(`✅ Loaded ${response.data.orders.length} orders`);
+        setOrders(response.data.orders);
+        setPagination(response.data.pagination);
+        setCurrentPage(page);
+      } else {
+        setError('Failed to fetch orders');
+      }
+    } catch (error) {
+      console.error('❌ Error fetching orders:', error);
+      
+      // Handle authentication errors
+      if (error.message.includes('Authentication required') || 
+          error.message.includes('Invalid token') ||
+          error.message.includes('Token expired')) {
+        setError('Your session has expired. Please login again.');
+        // Redirect to login after a short delay
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000);
+      } else {
+        setError(error.message || 'Failed to fetch orders');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Handle Escape key to close modal
   useEffect(() => {
@@ -49,7 +128,7 @@ const MyOrders = () => {
 
     if (isModalOpen) {
       document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden'; // Prevent background scrolling
+      document.body.style.overflow = 'hidden';
     }
 
     return () => {
@@ -58,35 +137,42 @@ const MyOrders = () => {
     };
   }, [isModalOpen]);
 
-  const fetchOrders = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      console.log('=== FETCHING USER ORDERS ===');
-      console.log('User authenticated:', isAuthenticated);
-      console.log('Auth token present:', !!localStorage.getItem('token'));
-      console.log('Current user:', localStorage.getItem('user'));
-      
-      const response = await apiService.getUserOrders();
-      console.log('API Response:', response);
-      
-      if (response.success) {
-        console.log(`✅ Loaded ${response.data.orders.length} orders for current user`);
-        setOrders(response.data.orders);
-        
-        // Log order IDs to verify they belong to current user
-        if (response.data.orders.length > 0) {
-          console.log('Order IDs:', response.data.orders.map(o => o._id));
-          console.log('First order userId:', response.data.orders[0].userId);
-        }
-      } else {
-        setError('Failed to fetch orders');
-      }
-    } catch (error) {
-      console.error('❌ Error fetching orders:', error);
-      setError(error.message || 'Failed to fetch orders');
-    } finally {
-      setLoading(false);
+  // Initial fetch
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchOrders(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
+
+  // Refetch when filters change (with debounce for search)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    
+    // Clear existing debounce
+    if (searchDebounce) {
+      clearTimeout(searchDebounce);
+    }
+    
+    // Debounce search by 500ms
+    const timeout = setTimeout(() => {
+      setCurrentPage(1); // Reset to first page on filter change
+      fetchOrders(1);
+    }, searchTerm ? 500 : 0); // Only debounce if there's a search term
+    
+    setSearchDebounce(timeout);
+    
+    return () => {
+      if (timeout) clearTimeout(timeout);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, sortBy, searchTerm, isAuthenticated]);
+
+  // Handle page change
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= pagination.pages) {
+      fetchOrders(newPage);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
@@ -191,34 +277,6 @@ const MyOrders = () => {
     });
   };
 
-  // Filter and search orders
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = !searchTerm || 
-      order.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order._id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.items?.some(item => item.name?.toLowerCase().includes(searchTerm.toLowerCase()));
-    
-    const matchesStatus = statusFilter === 'all' || order.orderStatus?.toLowerCase() === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  });
-
-  // Sort orders
-  const sortedOrders = [...filteredOrders].sort((a, b) => {
-    switch (sortBy) {
-      case 'newest':
-        return new Date(b.createdAt) - new Date(a.createdAt);
-      case 'oldest':
-        return new Date(a.createdAt) - new Date(b.createdAt);
-      case 'amount-high':
-        return (b.total || 0) - (a.total || 0);
-      case 'amount-low':
-        return (a.total || 0) - (b.total || 0);
-      default:
-        return 0;
-    }
-  });
-
   // Loading state
   if (loading) {
     return (
@@ -283,7 +341,7 @@ const MyOrders = () => {
   }
 
   // Empty orders state
-  if (orders.length === 0) {
+  if (!loading && orders.length === 0 && !searchTerm && statusFilter === 'all') {
     return (
       <div className="min-h-screen pt-32 px-4 bg-gradient-to-br from-pink-50 via-white to-purple-50">
         <div className="max-w-4xl mx-auto text-center">
@@ -291,7 +349,7 @@ const MyOrders = () => {
             <FiShoppingBag size={64} className="mx-auto text-purple-300 mb-6" />
             <h1 className="text-2xl sm:text-3xl font-bold mb-4 text-gray-800">No Orders Yet</h1>
             <p className="text-gray-600 mb-8 text-sm sm:text-base">
-              You haven't placed any orders yet. Start shopping to see your orders here.
+              You haven&apos;t placed any orders yet. Start shopping to see your orders here.
             </p>
             <Link
               to="/collection"
@@ -310,15 +368,9 @@ const MyOrders = () => {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-        <motion.h1
-                            className="text-4xl sm:text-5xl lg:text-5xl font-extrabold text-center text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 mb-6 drop-shadow-sm"
-                            initial={{ opacity: 0, y: -20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.6, ease: 'easeOut' }}
-                          >
+          <h1 className="text-4xl sm:text-5xl lg:text-5xl font-extrabold text-center text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 mb-6 drop-shadow-sm">
             My Orders
-          </motion.h1>
-          
+          </h1>
         </div>
 
         {/* Search and Filters */}
@@ -368,16 +420,29 @@ const MyOrders = () => {
           </div>
         </div>
         
+        {/* Results Info */}
+        {!loading && orders.length > 0 && (
+          <div className="bg-white rounded-lg shadow p-4 mb-6 flex items-center justify-between">
+            <div className="text-sm text-gray-600">
+              Showing <span className="font-semibold text-purple-600">{orders.length}</span> of{' '}
+              <span className="font-semibold text-purple-600">{pagination.total}</span> orders
+            </div>
+            <button
+              onClick={() => fetchOrders(currentPage)}
+              className="flex items-center text-purple-600 hover:text-purple-800 transition-colors text-sm font-medium"
+            >
+              <FiRefreshCw className="mr-1" />
+              Refresh
+            </button>
+          </div>
+        )}
+        
         {/* Orders Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {sortedOrders.map((order, index) => (
-            <motion.div
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          {orders.map((order, index) => (
+            <div
               key={order._id || index}
               className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: index * 0.1 }}
-              whileHover={{ y: -5 }}
             >
               {/* Order Header */}
               <div className="bg-gradient-to-r from-purple-100 to-pink-100 px-4 py-3">
@@ -387,6 +452,13 @@ const MyOrders = () => {
                       <FiCalendar className="mr-1" />
                       {formatDate(order.createdAt)}
                     </div>
+                    <Link
+                      to={`/order/${order._id}`}
+                      className="text-xs text-purple-600 hover:text-purple-800 font-medium mt-1 inline-flex items-center"
+                    >
+                      <FiEye className="mr-1" />
+                      View Full Details
+                    </Link>
                   </div>
                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(order.orderStatus)}`}>
                     {getStatusIcon(order.orderStatus)}
@@ -495,17 +567,101 @@ const MyOrders = () => {
                     </div>
                   </div>
                 )}
+                
+                {/* View Details Button */}
+                <Link
+                  to={`/order/${order._id}`}
+                  className="w-full mt-3 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-semibold hover:from-purple-600 hover:to-pink-600 transition-all text-center flex items-center justify-center"
+                >
+                  <FiEye className="mr-2" />
+                  View Full Details
+                </Link>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
 
+        {/* Pagination Controls */}
+        {!loading && pagination.total > 0 && pagination.pages > 1 && (
+          <div className="flex justify-center items-center gap-2 mt-8 mb-12">
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={!pagination.hasPrevPage}
+              className={`flex items-center px-4 py-2 rounded-lg font-medium transition-all ${
+                pagination.hasPrevPage
+                  ? 'bg-white text-purple-600 hover:bg-purple-50 border border-purple-200'
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              <FiChevronLeft className="mr-1" />
+              Previous
+            </button>
+            
+            <div className="flex items-center gap-1">
+              {[...Array(pagination.pages)].map((_, i) => {
+                const pageNum = i + 1;
+                // Show first page, last page, current page, and pages around current
+                if (
+                  pageNum === 1 ||
+                  pageNum === pagination.pages ||
+                  (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                ) {
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => handlePageChange(pageNum)}
+                      className={`w-10 h-10 rounded-lg font-medium transition-all ${
+                        pageNum === currentPage
+                          ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
+                          : 'bg-white text-gray-700 hover:bg-purple-50 border border-gray-200'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                }
+                // Show ellipsis
+                if (pageNum === currentPage - 2 || pageNum === currentPage + 2) {
+                  return (
+                    <span key={pageNum} className="px-2 text-gray-400">
+                      ...
+                    </span>
+                  );
+                }
+                return null;
+              })}
+            </div>
+            
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={!pagination.hasNextPage}
+              className={`flex items-center px-4 py-2 rounded-lg font-medium transition-all ${
+                pagination.hasNextPage
+                  ? 'bg-white text-purple-600 hover:bg-purple-50 border border-purple-200'
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              Next
+              <FiChevronRight className="ml-1" />
+            </button>
+          </div>
+        )}
+
         {/* No results message */}
-        {sortedOrders.length === 0 && orders.length > 0 && (
-          <div className="text-center py-12">
+        {!loading && orders.length === 0 && (statusFilter !== 'all' || searchTerm) && (
+          <div className="text-center py-12 bg-white rounded-xl shadow-lg">
             <FiSearch size={48} className="mx-auto text-gray-300 mb-4" />
             <h3 className="text-xl font-semibold text-gray-800 mb-2">No orders found</h3>
-            <p className="text-gray-600">Try adjusting your search or filters</p>
+            <p className="text-gray-600 mb-4">Try adjusting your search or filters</p>
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setStatusFilter('all');
+              }}
+              className="px-6 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+            >
+              Clear Filters
+            </button>
           </div>
         )}
 

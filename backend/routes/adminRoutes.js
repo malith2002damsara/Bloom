@@ -12,6 +12,12 @@ const {
   markAllNotificationsRead,
   deleteNotification
 } = require('../controllers/notificationController');
+const {
+  getAdminDashboardStats,
+  getAdminProductStats,
+  getAdminOrderStats,
+  getAdminRevenue
+} = require('../controllers/adminAnalyticsController');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
 const User = require('../models/User');
@@ -195,9 +201,15 @@ router.put('/change-password', auth, adminOnly, changeAdminPassword);
 router.get('/profile', auth, adminOnly, getAdminProfile);
 router.put('/profile', auth, adminOnly, updateAdminProfile);
 
-// Data routes
+// Data routes (legacy - kept for backward compatibility)
 router.get('/stats', auth, adminOnly, getDashboardStats);
 router.get('/analytics', auth, adminOnly, getAnalytics);
+
+// New analytics routes
+router.get('/dashboard/stats', auth, adminOnly, getAdminDashboardStats);
+router.get('/products/stats', auth, adminOnly, getAdminProductStats);
+router.get('/orders/stats', auth, adminOnly, getAdminOrderStats);
+router.get('/revenue', auth, adminOnly, getAdminRevenue);
 
 // Notification routes
 router.get('/notifications', auth, adminOnly, getNotifications);
