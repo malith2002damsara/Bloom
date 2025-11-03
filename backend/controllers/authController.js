@@ -26,12 +26,30 @@ const register = async (req, res) => {
 
     const { name, email, phone, password } = req.body;
 
-    // Check if user already exists
+    // Check if user already exists with email
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({
         success: false,
         message: 'User already exists with this email'
+      });
+    }
+
+    // Check if phone number is already used by another user or admin
+    const phoneExists = await User.findOne({ phone });
+    if (phoneExists) {
+      return res.status(400).json({
+        success: false,
+        message: 'That number already exists, please use another number.'
+      });
+    }
+
+    const Admin = require('../models/Admin');
+    const adminPhoneExists = await Admin.findOne({ phone });
+    if (adminPhoneExists) {
+      return res.status(400).json({
+        success: false,
+        message: 'That number already exists, please use another number.'
       });
     }
 

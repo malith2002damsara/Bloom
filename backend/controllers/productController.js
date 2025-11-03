@@ -6,17 +6,27 @@ const Admin = require('../models/Admin');
 // @access  Public
 const getProducts = async (req, res) => {
   try {
-    const { category, search, sortBy, page = 1, limit = 20, adminId } = req.query;
+    const { 
+      category, 
+      search, 
+      sortBy, 
+      page = 1, 
+      limit = 20, 
+      adminId, 
+      adminCode,
+      minPrice,
+      maxPrice 
+    } = req.query;
     
     console.log('=== GET PRODUCTS REQUEST ===');
-    console.log('Query params:', { category, search, sortBy, page, limit, adminId });
+    console.log('Query params:', { category, search, sortBy, page, limit, adminId, adminCode, minPrice, maxPrice });
     
     // Build query object
     let query = {};
 
     // IMPORTANT: Only show products from ACTIVE admins (exclude deactivated admins)
     // Get all active admin IDs
-    const activeAdmins = await Admin.find({ isActive: true }).select('_id');
+    const activeAdmins = await Admin.find({ isActive: true }).select('_id adminCode');
     const activeAdminIds = activeAdmins.map(admin => admin._id);
     
     console.log(`Found ${activeAdmins.length} active admins`);
@@ -24,7 +34,7 @@ const getProducts = async (req, res) => {
     // Filter products to only show those from active admins
     query.adminId = { $in: activeAdminIds };
 
-    // Filter by specific admin (for admin users to see only their products)
+    // Filter by specific admin ID (for admin users to see only their products)
     if (adminId) {
       // Check if this specific admin is active
       const isAdminActive = activeAdminIds.some(id => id.toString() === adminId);
@@ -46,10 +56,41 @@ const getProducts = async (req, res) => {
       }
       query.adminId = adminId;
     }
+    
+    // Filter by Admin Code (for customers to see only specific seller's products)
+    if (adminCode) {
+      const admin = activeAdmins.find(a => a.adminCode === adminCode.toUpperCase());
+      if (admin) {
+        query.adminId = admin._id;
+        console.log(`Filtering by admin code: ${adminCode} -> Admin ID: ${admin._id}`);
+      } else {
+        console.log(`Admin code ${adminCode} not found - returning no products`);
+        return res.json({
+          success: true,
+          message: 'No products found for this admin code',
+          data: {
+            products: [],
+            pagination: {
+              page: parseInt(page),
+              limit: parseInt(limit),
+              total: 0,
+              pages: 0
+            }
+          }
+        });
+      }
+    }
 
     // Filter by category
     if (category && category !== 'all') {
       query.category = category;
+    }
+
+    // Price range filter
+    if (minPrice || maxPrice) {
+      query.discountedPrice = {};
+      if (minPrice) query.discountedPrice.$gte = parseFloat(minPrice);
+      if (maxPrice) query.discountedPrice.$lte = parseFloat(maxPrice);
     }
 
     // Search functionality
@@ -66,16 +107,22 @@ const getProducts = async (req, res) => {
     if (sortBy) {
       switch (sortBy) {
         case 'price-low':
-          sort.price = 1;
+          sort.discountedPrice = 1;
           break;
         case 'price-high':
-          sort.price = -1;
+          sort.discountedPrice = -1;
           break;
         case 'name-asc':
           sort.name = 1;
           break;
         case 'name-desc':
           sort.name = -1;
+          break;
+        case 'rating':
+          sort['ratings.average'] = -1;
+          break;
+        case 'discount':
+          sort.discount = -1;
           break;
         default:
           sort.createdAt = -1; // Default: newest first
@@ -623,7 +670,8 @@ const updateProduct = async (req, res) => {
       sizes,
       dimensions,
       bearDetails,
-      seller
+      seller,
+      discount
     } = req.body;
 
     // Check if product exists and belongs to this admin
@@ -708,6 +756,12 @@ const updateProduct = async (req, res) => {
     if (description !== undefined) updateData.description = description.trim();
     if (category !== undefined) updateData.category = category;
     if (occasion !== undefined) updateData.occasion = occasion;
+    
+    // Update discount if provided
+    if (discount !== undefined) {
+      const discountValue = parseFloat(discount) || 0;
+      updateData.discount = Math.max(0, Math.min(100, discountValue)); // Ensure 0-100 range
+    }
 
     // Calculate base price from sizes/bearDetails if they are being updated
     let basePrice = null;
@@ -725,6 +779,16 @@ const updateProduct = async (req, res) => {
 
     if (basePrice !== null) {
       updateData.price = basePrice;
+    }
+    
+    // Calculate discounted price if price or discount is being updated
+    const finalPrice = updateData.price !== undefined ? updateData.price : existingProduct.price;
+    const finalDiscount = updateData.discount !== undefined ? updateData.discount : existingProduct.discount;
+    
+    if (finalDiscount > 0) {
+      updateData.discountedPrice = finalPrice - (finalPrice * finalDiscount / 100);
+    } else {
+      updateData.discountedPrice = finalPrice;
     }
 
     // Handle new images if uploaded
@@ -897,11 +961,74 @@ const deleteProduct = async (req, res) => {
   }
 };
 
+// @desc    Get 10 newest products from different admins (for home page)
+// @route   GET /api/products/home
+// @access  Public
+const getHomePageProducts = async (req, res) => {
+  try {
+    console.log('=== GET HOME PAGE PRODUCTS ===');
+    
+    // Get all active admins
+    const activeAdmins = await Admin.find({ isActive: true }).select('_id').lean();
+    const activeAdminIds = activeAdmins.map(admin => admin._id);
+    
+    console.log(`Found ${activeAdmins.length} active admins`);
+
+    // Get 10 newest products, ensuring they are from different admins
+    const products = await Product.aggregate([
+      {
+        $match: {
+          adminId: { $in: activeAdminIds },
+          status: 'active'
+        }
+      },
+      {
+        $sort: { createdAt: -1 }
+      },
+      // Group by adminId and get the newest product from each admin
+      {
+        $group: {
+          _id: '$adminId',
+          product: { $first: '$$ROOT' }
+        }
+      },
+      {
+        $replaceRoot: { newRoot: '$product' }
+      },
+      {
+        $sort: { createdAt: -1 }
+      },
+      {
+        $limit: 10
+      }
+    ]);
+
+    console.log(`✅ Retrieved ${products.length} products from different admins for home page`);
+
+    res.json({
+      success: true,
+      message: 'Home page products retrieved successfully',
+      data: {
+        products
+      }
+    });
+
+  } catch (error) {
+    console.error('Get home page products error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while retrieving home page products',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = {
   getProducts,
   getProductById,
   getCategories,
   createProduct,
   updateProduct,
-  deleteProduct
+  deleteProduct,
+  getHomePageProducts
 };

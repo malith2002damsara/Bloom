@@ -16,8 +16,25 @@ const {
   getAdminDashboardStats,
   getAdminProductStats,
   getAdminOrderStats,
-  getAdminRevenue
+  getAdminRevenue,
+  getTopProducts,
+  getRecentReviews,
+  getSimplifiedDashboard
 } = require('../controllers/adminAnalyticsController');
+const {
+  getAdminProfile: getProfile,
+  updateAdminProfile: updateProfile,
+  getShopInfo,
+  updateAdminPassword: updatePassword
+} = require('../controllers/adminProfileController');
+const {
+  getPendingCommission,
+  payWithCash,
+  createPaymentIntent,
+  confirmStripePayment,
+  getPaymentHistory,
+  getCommissionStats
+} = require('../controllers/adminCommissionController');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
 const User = require('../models/User');
@@ -198,18 +215,33 @@ const getAnalytics = async (req, res) => {
 router.post('/login', adminLogin);
 router.get('/verify', verifyAdmin);
 router.put('/change-password', auth, adminOnly, changeAdminPassword);
-router.get('/profile', auth, adminOnly, getAdminProfile);
-router.put('/profile', auth, adminOnly, updateAdminProfile);
 
-// Data routes (legacy - kept for backward compatibility)
+// Profile routes
+router.get('/profile', auth, adminOnly, getProfile);
+router.put('/profile', auth, adminOnly, updateProfile);
+router.get('/shop-info', auth, adminOnly, getShopInfo);
+router.put('/profile/password', auth, adminOnly, updatePassword);
+
+// Dashboard routes
+router.get('/dashboard', auth, adminOnly, getSimplifiedDashboard);
 router.get('/stats', auth, adminOnly, getDashboardStats);
 router.get('/analytics', auth, adminOnly, getAnalytics);
 
-// New analytics routes
+// Analytics routes
 router.get('/dashboard/stats', auth, adminOnly, getAdminDashboardStats);
 router.get('/products/stats', auth, adminOnly, getAdminProductStats);
 router.get('/orders/stats', auth, adminOnly, getAdminOrderStats);
 router.get('/revenue', auth, adminOnly, getAdminRevenue);
+router.get('/analytics/top-products', auth, adminOnly, getTopProducts);
+router.get('/recent-reviews', auth, adminOnly, getRecentReviews);
+
+// Commission payment routes
+router.get('/commission/pending', auth, adminOnly, getPendingCommission);
+router.post('/commission/pay-with-cash', auth, adminOnly, payWithCash);
+router.post('/commission/create-payment-intent', auth, adminOnly, createPaymentIntent);
+router.post('/commission/confirm-stripe-payment', auth, adminOnly, confirmStripePayment);
+router.get('/commission/history', auth, adminOnly, getPaymentHistory);
+router.get('/commission/stats', auth, adminOnly, getCommissionStats);
 
 // Notification routes
 router.get('/notifications', auth, adminOnly, getNotifications);

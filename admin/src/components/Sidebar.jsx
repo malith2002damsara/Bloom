@@ -10,7 +10,8 @@ import {
   Flower,
   Phone,
   Mail,
-  Lock
+  Lock,
+  User
 } from 'lucide-react';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import ChangePasswordModal from './ChangePasswordModal';
@@ -27,6 +28,7 @@ const Sidebar = () => {
     { path: '/add-items', icon: Plus, label: 'Add Items' },
     { path: '/list-items', icon: Package, label: 'List Items' },
     { path: '/orders', icon: ShoppingBag, label: 'Orders' },
+    { path: '/profile', icon: User, label: 'Profile' },
   ];
 
   const handleLogout = () => {
@@ -79,25 +81,7 @@ const Sidebar = () => {
         </ul>
       </nav>
 
-      {/* SuperAdmin Contact Info */}
-      {admin?.superAdminContact && (
-        <div className="px-4 py-3 mx-4 mb-4 bg-purple-50 border border-purple-200 rounded-lg">
-          <p className="text-xs font-semibold text-purple-900 mb-2">Super Admin Contact</p>
-          <div className="space-y-1">
-            <p className="text-xs text-purple-800 font-medium">{admin.superAdminContact.name}</p>
-            <div className="flex items-center space-x-1 text-xs text-purple-700">
-              <Mail className="w-3 h-3" />
-              <span className="truncate">{admin.superAdminContact.email}</span>
-            </div>
-            {admin.superAdminContact.phone && (
-              <div className="flex items-center space-x-1 text-xs text-purple-700">
-                <Phone className="w-3 h-3" />
-                <span>{admin.superAdminContact.phone}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      
 
       {/* User Info & Logout */}
       <div className="p-4 border-t border-gray-200">

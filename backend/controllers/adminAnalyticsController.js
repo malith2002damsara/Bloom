@@ -1,6 +1,7 @@
 const Product = require('../models/Product');
 const Order = require('../models/Order');
 const Admin = require('../models/Admin');
+const Feedback = require('../models/Feedback');
 
 // @desc    Get Admin Dashboard Statistics
 // @route   GET /api/admin/dashboard/stats
@@ -429,9 +430,265 @@ const getAdminRevenue = async (req, res) => {
   }
 };
 
+// @desc    Get Top Selling Products for Admin
+// @route   GET /api/admin/analytics/top-products
+// @access  Private (Admin only)
+const getTopProducts = async (req, res) => {
+  try {
+    const adminId = req.user._id;
+    const { period = 'last_30_days', limit = 10 } = req.query;
+
+    // Calculate date range based on period
+    let dateFilter = {};
+    const now = new Date();
+
+    switch (period) {
+      case 'last_7_days':
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        dateFilter.createdAt = { $gte: sevenDaysAgo };
+        break;
+      case 'last_30_days':
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        dateFilter.createdAt = { $gte: thirtyDaysAgo };
+        break;
+      case 'last_90_days':
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        dateFilter.createdAt = { $gte: ninetyDaysAgo };
+        break;
+      case 'this_month':
+        dateFilter.createdAt = {
+          $gte: new Date(now.getFullYear(), now.getMonth(), 1)
+        };
+        break;
+      case 'this_year':
+        dateFilter.createdAt = {
+          $gte: new Date(now.getFullYear(), 0, 1)
+        };
+        break;
+      case 'all_time':
+        // No date filter
+        break;
+      default:
+        // Default to last 30 days
+        const defaultDate = new Date();
+        defaultDate.setDate(defaultDate.getDate() - 30);
+        dateFilter.createdAt = { $gte: defaultDate };
+    }
+
+    // Get top products by quantity sold
+    const topProducts = await Order.aggregate([
+      { 
+        $match: { 
+          'items.adminId': adminId,
+          orderStatus: { $in: ['delivered', 'completed'] },
+          ...dateFilter
+        } 
+      },
+      { $unwind: '$items' },
+      { $match: { 'items.adminId': adminId } },
+      {
+        $group: {
+          _id: '$items.productId',
+          productName: { $first: '$items.name' },
+          productImage: { $first: '$items.image' },
+          totalQuantitySold: { $sum: '$items.quantity' },
+          totalRevenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } },
+          orderCount: { $sum: 1 }
+        }
+      },
+      { $sort: { totalQuantitySold: -1 } },
+      { $limit: parseInt(limit) }
+    ]);
+
+    // Enrich with product details (ratings, discount, stock)
+    const enrichedProducts = await Promise.all(
+      topProducts.map(async (item) => {
+        const product = await Product.findById(item._id)
+          .select('ratings discount stock category')
+          .lean();
+        
+        return {
+          productId: item._id,
+          productName: item.productName,
+          productImage: item.productImage,
+          totalQuantitySold: item.totalQuantitySold,
+          totalRevenue: Math.round(item.totalRevenue * 100) / 100,
+          orderCount: item.orderCount,
+          averageRating: product?.ratings?.average || 0,
+          reviewCount: product?.ratings?.count || 0,
+          discount: product?.discount || 0,
+          currentStock: product?.stock || 0,
+          category: product?.category || 'uncategorized'
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      data: {
+        period,
+        products: enrichedProducts,
+        count: enrichedProducts.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Get top products error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching top products',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Get Recent Customer Reviews for Admin
+// @route   GET /api/admin/recent-reviews
+// @access  Private (Admin only)
+const getRecentReviews = async (req, res) => {
+  try {
+    const adminId = req.user._id;
+    const { limit = 7 } = req.query;
+
+    // Get products for this admin
+    const adminProducts = await Product.find({ adminId })
+      .select('_id')
+      .lean();
+    
+    const productIds = adminProducts.map(p => p._id);
+
+    if (productIds.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          reviews: [],
+          count: 0
+        }
+      });
+    }
+
+    // Get recent feedback for admin's products
+    const reviews = await Feedback.find({
+      productId: { $in: productIds },
+      status: 'approved'
+    })
+      .populate('userId', 'name')
+      .populate('productId', 'name images category')
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .lean();
+
+    // Format reviews
+    const formattedReviews = reviews.map(review => ({
+      id: review._id,
+      productName: review.productId?.name || 'Unknown Product',
+      productImage: review.productId?.images?.[0] || null,
+      productCategory: review.productId?.category || 'uncategorized',
+      customerName: review.userId?.name || 'Anonymous',
+      rating: review.rating,
+      comment: review.comment,
+      createdAt: review.createdAt
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        reviews: formattedReviews,
+        count: formattedReviews.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Get recent reviews error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching recent reviews',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// @desc    Get Simplified Dashboard Data
+// @route   GET /api/admin/dashboard
+// @access  Private (Admin only)
+const getSimplifiedDashboard = async (req, res) => {
+  try {
+    const adminId = req.user._id;
+
+    // Get admin details with promo code
+    const admin = await Admin.findById(adminId)
+      .select('name email adminCode isActive earnings commission')
+      .lean();
+
+    // Get recent orders (simplified - only product info)
+    const recentOrders = await Order.find({
+      'items.adminId': adminId
+    })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .lean();
+
+    // Format recent orders to show only relevant product data
+    const formattedOrders = recentOrders.map(order => {
+      // Filter items to only show admin's products
+      const adminItems = order.items.filter(item => 
+        item.adminId.toString() === adminId.toString()
+      );
+
+      return adminItems.map(item => ({
+        productName: item.name,
+        productImage: item.image,
+        quantity: item.quantity,
+        totalAmount: item.price * item.quantity,
+        status: order.orderStatus,
+        orderDate: order.createdAt
+      }));
+    }).flat().slice(0, 10); // Flatten and take first 10
+
+    // Get quick stats
+    const stats = {
+      totalProducts: await Product.countDocuments({ adminId }),
+      activeOrders: await Order.countDocuments({
+        'items.adminId': adminId,
+        orderStatus: { $in: ['pending', 'confirmed', 'processing', 'shipped'] }
+      }),
+      totalRevenue: admin.earnings?.total || 0,
+      pendingCommission: admin.commission?.totalDue || 0
+    };
+
+    res.json({
+      success: true,
+      data: {
+        admin: {
+          name: admin.name,
+          email: admin.email,
+          promoCode: admin.adminCode,
+          isActive: admin.isActive
+        },
+        stats,
+        recentOrders: formattedOrders
+      }
+    });
+
+  } catch (error) {
+    console.error('Get simplified dashboard error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching dashboard data',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = {
   getAdminDashboardStats,
   getAdminProductStats,
   getAdminOrderStats,
-  getAdminRevenue
+  getAdminRevenue,
+  getTopProducts,
+  getRecentReviews,
+  getSimplifiedDashboard
 };

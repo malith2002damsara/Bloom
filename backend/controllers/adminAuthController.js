@@ -71,6 +71,7 @@ const adminLogin = async (req, res) => {
           name: admin.name,
           email: admin.email,
           phone: admin.phone,
+          adminCode: admin.adminCode, // Include admin code in login response
           role: admin.role,
           lastLogin: admin.lastLogin,
           superAdminContact: superAdmin ? {
@@ -154,6 +155,7 @@ const verifyAdmin = async (req, res) => {
           name: admin.name,
           email: admin.email,
           phone: admin.phone,
+          adminCode: admin.adminCode, // Include admin code in verify response
           role: admin.role,
           superAdminContact: superAdmin ? {
             name: superAdmin.name,
@@ -271,6 +273,7 @@ const getAdminProfile = async (req, res) => {
           name: admin.name,
           email: admin.email,
           phone: admin.phone,
+          adminCode: admin.adminCode, // Include admin code in profile response
           role: admin.role,
           isActive: admin.isActive,
           lastLogin: admin.lastLogin,
@@ -324,6 +327,7 @@ const updateAdminProfile = async (req, res) => {
           name: admin.name,
           email: admin.email,
           phone: admin.phone,
+          adminCode: admin.adminCode, // Include admin code in update response
           role: admin.role
         }
       }

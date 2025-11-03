@@ -122,6 +122,15 @@ const orderSchema = new mongoose.Schema({
   notes: {
     type: String,
     default: ''
+  },
+  // Feedback tracking
+  feedbackSubmitted: {
+    type: Boolean,
+    default: false
+  },
+  feedbackRequestedAt: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true

@@ -5,7 +5,8 @@ const {
   getCategories,
   createProduct,
   updateProduct,
-  deleteProduct
+  deleteProduct,
+  getHomePageProducts
 } = require('../controllers/productController');
 const { auth, adminOnly } = require('../middleware/auth');
 const { uploadProductImages, handleUploadError } = require('../middleware/upload');
@@ -16,6 +17,11 @@ const router = express.Router();
 // @desc    Get all products with filtering, searching, and pagination
 // @access  Public
 router.get('/', getProducts);
+
+// @route   GET /api/products/home
+// @desc    Get 10 newest products from different admins for home page
+// @access  Public
+router.get('/home', getHomePageProducts);
 
 // @route   POST /api/products
 // @desc    Create new product (Admin only)

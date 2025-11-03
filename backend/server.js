@@ -37,6 +37,8 @@ app.use('/api/products', require('./routes/productRoutes'));
 app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/superadmin', require('./routes/superadminRoutes'));
+app.use('/api/feedback', require('./routes/feedbackRoutes'));
+app.use('/api/commission', require('./routes/commissionRoutes'));
 
 // Test route
 app.get('/', (req, res) => {
@@ -47,6 +49,10 @@ app.get('/', (req, res) => {
 mongoose.connect(process.env.MONGODB_URI)
 .then(() => {
   console.log('Connected to MongoDB');
+  
+  // Initialize cron jobs after successful DB connection
+  const { initializeCronJobs } = require('./utils/cronJobs');
+  initializeCronJobs();
 })
 .catch((error) => {
   console.error('MongoDB connection error:', error);

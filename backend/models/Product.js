@@ -17,6 +17,19 @@ const productSchema = new mongoose.Schema({
     min: [0, 'Price cannot be negative'],
     default: 0
   },
+  // Discount percentage (0-100)
+  discount: {
+    type: Number,
+    min: [0, 'Discount cannot be negative'],
+    max: [100, 'Discount cannot exceed 100%'],
+    default: 0
+  },
+  // Calculated discounted price
+  discountedPrice: {
+    type: Number,
+    min: [0, 'Price cannot be negative'],
+    default: 0
+  },
   category: {
     type: String,
     required: [true, 'Product category is required'],
@@ -244,6 +257,14 @@ productSchema.index({ adminId: 1, category: 1 }); // Compound index for better p
 
 // Update status based on stock
 productSchema.pre('save', function(next) {
+  // Calculate discounted price
+  if (this.discount > 0) {
+    this.discountedPrice = this.price - (this.price * this.discount / 100);
+  } else {
+    this.discountedPrice = this.price;
+  }
+  
+  // Update stock status
   if (this.stock === 0) {
     this.status = 'out_of_stock';
     this.inStock = false;

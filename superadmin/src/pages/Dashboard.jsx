@@ -55,13 +55,11 @@ const Dashboard = () => {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-gray-600">{title}</p>
-          <p className="text-2xl font-bold text-gray-900 mt-2">
-            {loading ? (
-              <div className="w-16 h-8 bg-gray-200 animate-pulse rounded"></div>
-            ) : (
-              value
-            )}
-          </p>
+          {loading ? (
+            <div className="w-16 h-8 bg-gray-200 animate-pulse rounded mt-2"></div>
+          ) : (
+            <p className="text-2xl font-bold text-gray-900 mt-2">{value}</p>
+          )}
           {change && !loading && (
             <p className={`text-sm mt-2 flex items-center ${change > 0 ? 'text-green-600' : 'text-red-600'}`}>
               <TrendingUp className="w-4 h-4 mr-1" />

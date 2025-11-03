@@ -6,11 +6,16 @@ import {
   ShoppingBag,
   Eye,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Copy,
+  CheckCircle,
+  Star,
+  MessageCircle
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import adminApi from '../utils/api';
 import DashboardCharts from '../components/DashboardCharts';
+import CommissionPaymentModal from '../components/CommissionPaymentModal';
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -18,14 +23,19 @@ const Dashboard = () => {
     totalOrders: 0,
     totalProducts: 0,
     pendingOrders: 0,
-    lowStock: 0
+    lowStock: 0,
+    pendingCommission: 0
   });
 
   const [recentOrders, setRecentOrders] = useState([]);
+  const [recentReviews, setRecentReviews] = useState([]);
+  const [promoCode, setPromoCode] = useState('');
   const [salesData, setSalesData] = useState([]);
   const [categoryData, setCategoryData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showCommissionModal, setShowCommissionModal] = useState(false);
+  const [copiedPromo, setCopiedPromo] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -39,29 +49,29 @@ const Dashboard = () => {
     try {
       setLoading(true);
       
-      // Fetch dashboard stats
-      const statsResponse = await adminApi.getDashboardStats();
-      if (statsResponse.success) {
-        setStats(statsResponse.data);
+      // Fetch simplified dashboard data (includes stats, recent orders, promo code)
+      const dashboardResponse = await adminApi.get('/admin/dashboard');
+      if (dashboardResponse.success) {
+        const { stats, recentOrders, admin, salesData, categoryData } = dashboardResponse.data;
+        // Ensure all stats have default values
+        setStats({
+          totalSales: stats?.totalSales || 0,
+          totalOrders: stats?.totalOrders || 0,
+          totalProducts: stats?.totalProducts || 0,
+          pendingOrders: stats?.pendingOrders || 0,
+          lowStock: stats?.lowStock || 0,
+          pendingCommission: stats?.pendingCommission || 0
+        });
+        setRecentOrders(recentOrders || []);
+        setPromoCode(admin?.promoCode || '');
+        setSalesData(salesData || []);
+        setCategoryData(categoryData || []);
       }
 
-      // Fetch recent orders
-      const ordersResponse = await adminApi.getOrders({ limit: 10 });
-      if (ordersResponse.success) {
-        const orders = ordersResponse.data.orders || [];
-        setRecentOrders(orders);
-        
-        // Generate sales data for last 7 days
-        const last7Days = generateLast7DaysData(orders);
-        setSalesData(last7Days);
-      }
-
-      // Fetch products for category distribution
-      const productsResponse = await adminApi.getAdminProducts();
-      if (productsResponse.success) {
-        const products = productsResponse.data.products || [];
-        const catData = generateCategoryData(products);
-        setCategoryData(catData);
+      // Fetch recent reviews
+      const reviewsResponse = await adminApi.get('/admin/recent-reviews?limit=5');
+      if (reviewsResponse.success) {
+        setRecentReviews(reviewsResponse.data.reviews || []);
       }
 
     } catch (error) {
@@ -84,60 +94,17 @@ const Dashboard = () => {
     toast.success('Dashboard refreshed!');
   };
 
-  const generateLast7DaysData = (orders) => {
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const today = new Date();
-    const data = [];
-
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      const dayName = days[date.getDay()];
-      
-      const dayOrders = orders.filter(order => {
-        const orderDate = new Date(order.createdAt);
-        return orderDate.toDateString() === date.toDateString();
-      });
-
-      const sales = dayOrders.reduce((sum, order) => sum + (order.total || 0), 0);
-      
-      data.push({
-        day: dayName,
-        sales: Math.round(sales * 100) / 100,
-        orders: dayOrders.length
-      });
-    }
-
-    return data;
+  const handleCopyPromoCode = () => {
+    navigator.clipboard.writeText(promoCode);
+    setCopiedPromo(true);
+    toast.success('Promo code copied to clipboard!');
+    setTimeout(() => setCopiedPromo(false), 2000);
   };
 
-  const generateCategoryData = (products) => {
-    const categories = {
-      fresh: 0,
-      artificial: 0,
-      mixed: 0,
-      bears: 0,
-      other: 0
-    };
-
-    products.forEach(product => {
-      const cat = product.category?.toLowerCase() || 'other';
-      if (categories.hasOwnProperty(cat)) {
-        categories[cat]++;
-      } else {
-        categories.other++;
-      }
-    });
-
-    const total = Object.values(categories).reduce((a, b) => a + b, 0);
-
-    return [
-      { name: 'Fresh Flowers', value: categories.fresh, total },
-      { name: 'Artificial', value: categories.artificial, total },
-      { name: 'Mixed', value: categories.mixed, total },
-      { name: 'Bears', value: categories.bears, total },
-      { name: 'Other', value: categories.other, total },
-    ].filter(item => item.value > 0);
+  const handleCommissionPaymentSuccess = () => {
+    setShowCommissionModal(false);
+    fetchDashboardData(); // Refresh to get updated commission
+    toast.success('Commission payment processed successfully!');
   };
 
   const StatCard = ({ title, value, icon: Icon, color, change }) => (
@@ -195,27 +162,75 @@ const Dashboard = () => {
       ) : (
         <>
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
             <StatCard
               title="Total Sales"
-              value={`$${stats.totalSales.toLocaleString()}`}
+              value={`$${(stats.totalSales || 0).toLocaleString()}`}
               icon={DollarSign}
               color="bg-green-500"
               change={{ positive: true, value: 12.5 }}
             />
             <StatCard
               title="Total Orders"
-              value={stats.totalOrders}
+              value={stats.totalOrders || 0}
               icon={ShoppingBag}
               color="bg-blue-500"
               change={{ positive: true, value: 8.2 }}
             />
             <StatCard
               title="Total Products"
-              value={stats.totalProducts}
+              value={stats.totalProducts || 0}
               icon={Package}
               color="bg-purple-500"
             />
+            <StatCard
+              title="Pending Commission"
+              value={`$${(stats.pendingCommission || 0).toLocaleString()}`}
+              icon={TrendingUp}
+              color="bg-orange-500"
+            />
+          </div>
+
+          {/* Promo Code & Commission Payment */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            {/* Promo Code Card */}
+            <div className="bg-gradient-to-br from-pink-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
+              <h3 className="text-lg font-semibold mb-2">Your Promo Code</h3>
+              <p className="text-sm text-pink-100 mb-4">Share this code with your customers for exclusive discounts</p>
+              <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4 flex items-center justify-between">
+                <span className="text-2xl font-bold tracking-wider">{promoCode || 'N/A'}</span>
+                <button
+                  onClick={handleCopyPromoCode}
+                  className="bg-white text-pink-600 px-4 py-2 rounded-lg hover:bg-pink-50 transition-colors flex items-center space-x-2"
+                  disabled={!promoCode}
+                >
+                  {copiedPromo ? <CheckCircle className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+                  <span className="font-medium">{copiedPromo ? 'Copied!' : 'Copy'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Commission Payment Card */}
+            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg p-6 text-white">
+              <h3 className="text-lg font-semibold mb-2">Commission Due</h3>
+              <p className="text-sm text-blue-100 mb-4">Total commission pending payment to Bloom</p>
+              <div className="flex items-end justify-between">
+                <div>
+                  <p className="text-4xl font-bold">${(stats.pendingCommission || 0).toLocaleString()}</p>
+                  <p className="text-sm text-blue-100 mt-1">
+                    {(stats.pendingCommission || 0) >= 50000 ? 'Payment required' : `$${(50000 - (stats.pendingCommission || 0)).toLocaleString()} until threshold`}
+                  </p>
+                </div>
+                {(stats.pendingCommission || 0) > 0 && (
+                  <button
+                    onClick={() => setShowCommissionModal(true)}
+                    className="bg-white text-blue-600 px-6 py-3 rounded-lg hover:bg-blue-50 transition-colors font-semibold"
+                  >
+                    Pay Now
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Alerts */}
@@ -225,7 +240,7 @@ const Dashboard = () => {
                 <AlertCircle className="w-6 h-6 text-yellow-600" />
                 <div>
                   <h3 className="font-semibold text-yellow-800">Pending Orders</h3>
-                  <p className="text-yellow-700">You have {stats.pendingOrders} orders waiting for processing</p>
+                  <p className="text-yellow-700">You have {stats.pendingOrders || 0} orders waiting for processing</p>
                 </div>
               </div>
             </div>
@@ -235,7 +250,7 @@ const Dashboard = () => {
                 <Package className="w-6 h-6 text-red-600" />
                 <div>
                   <h3 className="font-semibold text-red-800">Low Stock Alert</h3>
-                  <p className="text-red-700">{stats.lowStock} products are running low on stock</p>
+                  <p className="text-red-700">{stats.lowStock || 0} products are running low on stock</p>
                 </div>
               </div>
             </div>
@@ -248,66 +263,104 @@ const Dashboard = () => {
             recentOrders={recentOrders}
           />
 
-          {/* Recent Orders */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-            <div className="p-6 border-b border-gray-100">
-              <div className="flex items-center justify-between">
+          {/* Recent Orders & Reviews Grid */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
+            {/* Recent Orders */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+              <div className="p-6 border-b border-gray-100">
                 <h2 className="text-xl font-semibold text-gray-900">Recent Orders</h2>
-                <button className="text-blue-600 hover:text-blue-700 font-medium flex items-center space-x-1">
-                  <Eye className="w-4 h-4" />
-                  <span>View All</span>
-                </button>
+                <p className="text-sm text-gray-500 mt-1">Latest product orders from your store</p>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                {recentOrders.length > 0 ? (
+                  recentOrders.map((order, index) => (
+                    <div key={index} className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                      <img
+                        src={order.productImage || '/placeholder-product.png'}
+                        alt={order.productName}
+                        className="w-16 h-16 object-cover rounded-lg"
+                      />
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900">{order.productName}</h4>
+                        <p className="text-sm text-gray-500">Qty: {order.quantity} • ${order.totalAmount.toFixed(2)}</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {new Date(order.orderDate).toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric', 
+                            year: 'numeric' 
+                          })}
+                        </p>
+                      </div>
+                      <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status)}`}>
+                        {order.status}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-gray-500 text-center py-8">No recent orders</p>
+                )}
               </div>
             </div>
-            
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Order ID
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Customer
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Amount
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {recentOrders.map((order) => (
-                    <tr key={order._id || order.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {order._id || order.id}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {order.user?.name || order.customer}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${order.total || order.totalAmount || order.amount}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.orderStatus || order.status)}`}>
-                          {order.orderStatus || order.status}
+
+            {/* Recent Reviews */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+              <div className="p-6 border-b border-gray-100">
+                <div className="flex items-center space-x-2">
+                  <MessageCircle className="w-5 h-5 text-pink-600" />
+                  <h2 className="text-xl font-semibold text-gray-900">Customer Reviews</h2>
+                </div>
+                <p className="text-sm text-gray-500 mt-1">Recent feedback from your customers</p>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                {recentReviews.length > 0 ? (
+                  recentReviews.map((review) => (
+                    <div key={review._id} className="p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-start space-x-3 mb-2">
+                        <img
+                          src={review.productImage || '/placeholder-product.png'}
+                          alt={review.productName}
+                          className="w-12 h-12 object-cover rounded-lg"
+                        />
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-gray-900 text-sm">{review.productName}</h4>
+                          <p className="text-xs text-gray-500">{review.customerName}</p>
+                          <div className="flex items-center space-x-1 mt-1">
+                            {[...Array(5)].map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`w-4 h-4 ${
+                                  i < review.rating ? 'text-yellow-400 fill-current' : 'text-gray-300'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                        <span className="text-xs text-gray-400">
+                          {new Date(review.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : order.date}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                      <p className="text-sm text-gray-700 mt-2">{review.comment}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-gray-500 text-center py-8">No reviews yet</p>
+                )}
+              </div>
             </div>
           </div>
         </>
+      )}
+
+      {/* Commission Payment Modal */}
+      {showCommissionModal && (
+        <CommissionPaymentModal
+          isOpen={showCommissionModal}
+          onClose={() => setShowCommissionModal(false)}
+          pendingCommission={stats.pendingCommission || 0}
+          onSuccess={handleCommissionPaymentSuccess}
+        />
       )}
     </div>
   );

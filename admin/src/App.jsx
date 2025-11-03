@@ -11,6 +11,7 @@ import Analytics from './pages/Analytics';
 import Add from './pages/Add';
 import List from './pages/List';
 import Orders from './pages/Orders';
+import Profile from './pages/Profile';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAdminAuth();
@@ -108,6 +109,16 @@ const AppContent = () => {
             <ProtectedRoute>
               <AdminLayout>
                 <Orders />
+              </AdminLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <AdminLayout>
+                <Profile />
               </AdminLayout>
             </ProtectedRoute>
           }

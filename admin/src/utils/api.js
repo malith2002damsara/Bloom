@@ -49,6 +49,19 @@ class AdminApiService {
     }
   }
 
+  // Generic GET method
+  async get(endpoint) {
+    return this.request(endpoint, { method: 'GET' });
+  }
+
+  // Generic POST method
+  async post(endpoint, data) {
+    return this.request(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   // Admin Auth endpoints
   async adminLogin(credentials) {
     return this.request('/admin/login', {

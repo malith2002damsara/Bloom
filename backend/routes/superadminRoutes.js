@@ -16,7 +16,13 @@ const {
   getTransactionDetails,
   updateTransactionStatus,
   updateTransactionPayment,
-  getAdminCommissionReport
+  getAdminCommissionReport,
+  getAllInvoices,
+  markInvoicePaid,
+  getAllReports,
+  getReportDetails,
+  generateCustomReport,
+  checkPhoneAvailability
 } = require('../controllers/superAdminController');
 const { auth, superAdminOnly } = require('../middleware/auth');
 
@@ -48,5 +54,17 @@ router.put('/transactions/:id/payment', auth, superAdminOnly, updateTransactionP
 
 // Commission reports
 router.get('/admins/:id/commission-report', auth, superAdminOnly, getAdminCommissionReport);
+
+// Commission Invoice routes
+router.get('/invoices', auth, superAdminOnly, getAllInvoices);
+router.put('/invoices/:id/mark-paid', auth, superAdminOnly, markInvoicePaid);
+
+// Platform Report routes
+router.get('/reports', auth, superAdminOnly, getAllReports);
+router.get('/reports/:id', auth, superAdminOnly, getReportDetails);
+router.post('/reports/generate', auth, superAdminOnly, generateCustomReport);
+
+// Phone validation (public)
+router.get('/check-phone', checkPhoneAvailability);
 
 module.exports = router;

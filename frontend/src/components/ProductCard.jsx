@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 import { useCart } from '../context/CartContext';
 import { FiX, FiShoppingCart, FiHeart, FiStar, FiInfo, FiPackage, FiTruck, FiShield, FiMaximize, FiEye, FiRotateCw, FiMove } from 'react-icons/fi';
+import ProductReviews from './ProductReviews';
 
 const ProductCard = ({ product }) => {
   const { addToCart } = useCart();
@@ -185,11 +187,10 @@ const ProductCard = ({ product }) => {
 
   return (
     <>
-      <motion.div 
+      <div 
         className={`bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300 ${
           showQuickView ? 'pointer-events-none filter blur-sm' : ''
         }`}
-        whileHover={{ y: -2 }}
       >
         <div className="relative pb-[75%] overflow-hidden">
           <img 
@@ -197,16 +198,46 @@ const ProductCard = ({ product }) => {
             alt={product.name} 
             className="absolute h-full w-full object-cover"
           />
+          
+          {/* Discount Badge */}
+          {product.discount && product.discount > 0 && (
+            <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded-md shadow-lg z-10">
+              <span className="text-xs font-bold">-{product.discount}% OFF</span>
+            </div>
+          )}
+          
+          {/* Rating Badge */}
+          {product.ratings && product.ratings.count > 0 && (
+            <div className="absolute top-2 right-2 bg-yellow-400 text-gray-900 px-2 py-1 rounded-md shadow-lg z-10 flex items-center space-x-1">
+              <FiStar className="h-3 w-3 fill-current" />
+              <span className="text-xs font-bold">{product.ratings.average.toFixed(1)}</span>
+            </div>
+          )}
         </div>
         <div className="p-3">
           <h3 className="font-medium text-sm mb-1 line-clamp-2 leading-tight">{product.name}</h3>
-          <p className="text-purple-600 font-semibold text-sm mb-2">
-            {availableSizes.length > 0 ? (
-              `Rs. ${Math.min(...availableSizes.map(s => s.price)).toFixed(2)}`
+          
+          {/* Price with Discount */}
+          <div className="flex items-center space-x-2 mb-2">
+            {product.discount && product.discount > 0 ? (
+              <>
+                <p className="text-purple-600 font-semibold text-sm">
+                  Rs. {(product.discountedPrice || product.price || 0).toFixed(2)}
+                </p>
+                <p className="text-gray-400 text-xs line-through">
+                  Rs. {(product.price || 0).toFixed(2)}
+                </p>
+              </>
             ) : (
-              `Rs. ${(product.price || 0).toFixed(2)}`
+              <p className="text-purple-600 font-semibold text-sm">
+                {availableSizes.length > 0 ? (
+                  `Rs. ${Math.min(...availableSizes.map(s => s.price)).toFixed(2)}`
+                ) : (
+                  `Rs. ${(product.price || 0).toFixed(2)}`
+                )}
+              </p>
             )}
-          </p>
+          </div>
           <div className="flex space-x-1">
             <button
               onClick={handleQuickAddToCart}
@@ -224,7 +255,7 @@ const ProductCard = ({ product }) => {
             </button>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* Quick View Modal */}
       <AnimatePresence>
@@ -446,14 +477,23 @@ const ProductCard = ({ product }) => {
                           {/* Rating */}
                           <div className="flex items-center">
                             <div className="flex items-center">
-                              {[1, 2, 3, 4, 5].map((star) => (
-                                <FiStar 
-                                  key={star} 
-                                  className={`h-3 w-3 ${star <= 4 ? 'text-yellow-400 fill-current' : 'text-gray-300'}`} 
-                                />
-                              ))}
+                              {[1, 2, 3, 4, 5].map((star) => {
+                                const rating = product.ratings?.average || 0;
+                                return (
+                                  <FiStar 
+                                    key={star} 
+                                    className={`h-3 w-3 ${star <= Math.round(rating) ? 'text-yellow-400 fill-current' : 'text-gray-300'}`} 
+                                  />
+                                );
+                              })}
                             </div>
-                            <span className="ml-2 text-xs text-gray-600">(4.0) • 127 reviews</span>
+                            <span className="ml-2 text-xs text-gray-600">
+                              {product.ratings && product.ratings.count > 0 ? (
+                                `(${product.ratings.average.toFixed(1)}) • ${product.ratings.count} reviews`
+                              ) : (
+                                'No reviews yet'
+                              )}
+                            </span>
                           </div>
                         </div>
 
@@ -621,10 +661,23 @@ const ProductCard = ({ product }) => {
                         <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-100">
                           <div className="flex flex-wrap items-center gap-2 mb-2">
                             <span className="text-2xl font-bold text-purple-600">Rs. {getTotalPrice().toFixed(2)}</span>
-                            <span className="text-sm text-gray-500 line-through">Rs. {(getTotalPrice() * 1.2).toFixed(2)}</span>
-                            <span className="bg-red-100 text-red-800 text-xs font-medium px-2 py-1 rounded-full">
-                              Save 20%
-                            </span>
+                            {product.discount && product.discount > 0 ? (
+                              <>
+                                <span className="text-sm text-gray-500 line-through">
+                                  Rs. {((product.price || 0) * quantity).toFixed(2)}
+                                </span>
+                                <span className="bg-red-100 text-red-800 text-xs font-medium px-2 py-1 rounded-full">
+                                  Save {product.discount}%
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-sm text-gray-500 line-through">Rs. {(getTotalPrice() * 1.2).toFixed(2)}</span>
+                                <span className="bg-red-100 text-red-800 text-xs font-medium px-2 py-1 rounded-full">
+                                  Save 20%
+                                </span>
+                              </>
+                            )}
                           </div>
                           {quantity > 1 && (
                             <p className="text-xs text-gray-600">
@@ -732,6 +785,11 @@ const ProductCard = ({ product }) => {
                         </div>
                       </div>
                     </div>
+                    
+                    {/* Customer Reviews Section */}
+                    <div className="px-3 sm:px-4 md:px-6 pb-6">
+                      <ProductReviews productId={product._id || product.id} />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -743,4 +801,5 @@ const ProductCard = ({ product }) => {
   );
 };
 
-export default ProductCard;
+// Memoize ProductCard to prevent unnecessary re-renders
+export default React.memo(ProductCard);

@@ -131,6 +131,10 @@ class ApiService {
     return this.request(endpoint, { auth: false });
   }
 
+  async getHomeProducts() {
+    return this.request('/products/home', { auth: false });
+  }
+
   async getProductById(id) {
     return this.request(`/products/${id}`, { auth: false });
   }
@@ -161,6 +165,36 @@ class ApiService {
     return this.request(`/orders/${id}/cancel`, {
       method: 'PUT',
     });
+  }
+
+  // Feedback endpoints
+  async submitFeedback(feedbackData) {
+    return this.request('/feedback', {
+      method: 'POST',
+      body: JSON.stringify(feedbackData),
+    });
+  }
+
+  async getProductFeedback(productId, params = {}) {
+    const queryString = new URLSearchParams(params).toString();
+    const endpoint = queryString 
+      ? `/feedback/product/${productId}?${queryString}` 
+      : `/feedback/product/${productId}`;
+    return this.request(endpoint, { auth: false });
+  }
+
+  async getTopComments() {
+    return this.request('/feedback/top-comments', { auth: false });
+  }
+
+  async checkFeedbackEligibility(orderId) {
+    return this.request(`/feedback/check/${orderId}`);
+  }
+
+  async getAdminFeedback(params = {}) {
+    const queryString = new URLSearchParams(params).toString();
+    const endpoint = queryString ? `/feedback/admin?${queryString}` : '/feedback/admin';
+    return this.request(endpoint);
   }
 }
 

@@ -310,9 +310,7 @@ const Orders = () => {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Order
-                </th>
+              
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Customer
                 </th>
@@ -333,10 +331,7 @@ const Orders = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredOrders.map((order) => (
                 <tr key={order._id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">#{order._id.slice(-8)}</div>
-                    <div className="text-sm text-gray-500">{order.items?.length || 0} items</div>
-                  </td>
+                 
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">{order.customerInfo?.name}</div>
                     <div className="text-sm text-gray-500">{order.customerInfo?.email}</div>

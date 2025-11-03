@@ -15,6 +15,7 @@ const Add = () => {
     description: '',
     category: '',
     occasion: '',
+    discount: 0, // Discount percentage (0-100)
     flowerSelections: [], // Array of {flower: string, colors: string[]}
     artificialFlowerSelections: [], // Array of {flower: string, colors: string[], count: ''}
     freshFlowerSelections: [], // Array of {flower: string, colors: string[], count: ''}
@@ -490,6 +491,7 @@ const Add = () => {
       submitData.append('description', formData.description || '');
       submitData.append('category', formData.category);
       submitData.append('occasion', formData.occasion);
+      submitData.append('discount', formData.discount || 0);
 
       if (formData.category === 'bears') {
         // Handle bear product data
@@ -640,6 +642,7 @@ const Add = () => {
           description: '',
           category: '',
           occasion: '',
+          discount: 0,
           flowerSelections: [],
           artificialFlowerSelections: [],
           freshFlowerSelections: [],
@@ -819,6 +822,36 @@ const Add = () => {
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Discount Percentage (Optional)
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  name="discount"
+                  value={formData.discount}
+                  onChange={(e) => {
+                    const value = Math.max(0, Math.min(100, Number(e.target.value)));
+                    handleInputChange({ target: { name: 'discount', value, type: 'number' } });
+                  }}
+                  min="0"
+                  max="100"
+                  step="1"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                  placeholder="0"
+                />
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
+                  %
+                </div>
+              </div>
+              {formData.discount > 0 && (
+                <p className="mt-2 text-sm text-green-600 font-medium">
+                  🎉 {formData.discount}% discount will be applied to all sizes
+                </p>
+              )}
             </div>
 
             <div>

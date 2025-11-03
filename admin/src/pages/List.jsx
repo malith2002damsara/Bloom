@@ -15,6 +15,7 @@ const List = () => {
     category: '',
     description: '',
     occasion: '',
+    discount: 0, // Discount percentage (0-100)
     flowerSelections: [],
     artificialFlowerSelections: [],
     freshFlowerSelections: [],
@@ -149,6 +150,7 @@ const List = () => {
       category: product.category || '',
       description: product.description || '',
       occasion: product.occasion || '',
+      discount: product.discount || 0,
       flowerSelections: product.flowerSelections || [],
       artificialFlowerSelections: product.artificialFlowerSelections || [],
       freshFlowerSelections: product.freshFlowerSelections || [],
@@ -173,6 +175,7 @@ const List = () => {
       category: '',
       description: '',
       occasion: '',
+      discount: 0,
       flowerSelections: [],
       artificialFlowerSelections: [],
       freshFlowerSelections: [],
@@ -615,9 +618,7 @@ const List = () => {
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Flower Information
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Seller Info
-                  </th>
+                 
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
@@ -785,20 +786,7 @@ const List = () => {
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="space-y-2">
-                        {product.seller && (
-                          <>
-                            <div className="text-sm font-medium text-gray-900">
-                              {product.seller.name}
-                            </div>
-                            <div className="text-xs text-gray-600">
-                              {product.seller.contact}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </td>
+                   
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-2">
                         <button
@@ -913,24 +901,8 @@ const List = () => {
                     </div>
                   </div>
 
-                  {/* Seller Information */}
-                  {viewingProduct.seller && (
-                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-xl border border-green-200">
-                      <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                        <User className="w-5 h-5 text-green-600" />
-                        Seller Information
-                      </h4>
-                      <div className="space-y-2">
-                        <p className="font-medium text-green-900">{viewingProduct.seller.name}</p>
-                        {viewingProduct.seller.contact && (
-                          <p className="text-sm text-gray-600">Contact: {viewingProduct.seller.contact}</p>
-                        )}
-                        {viewingProduct.seller.phone && (
-                          <p className="text-sm text-gray-600">Phone: {viewingProduct.seller.phone}</p>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                
+                  
                 </div>
               </div>
 
@@ -1141,36 +1113,6 @@ const List = () => {
             </div>
 
             <form onSubmit={handleEditSubmit} className="p-6 space-y-8">
-              {/* Seller Information Section - Read Only */}
-              {editingProduct?.seller && (
-                <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-6 rounded-xl border border-gray-200 shadow-sm">
-                  <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <User className="w-5 h-5 text-gray-600" />
-                    Seller Information (Read Only)
-                  </h3>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Seller Name
-                      </label>
-                      <div className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg text-gray-700">
-                        {editingProduct.seller.name}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Phone Number
-                      </label>
-                      <div className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg text-gray-700">
-                        {editingProduct.seller.contact || 'Not provided'}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Basic Product Information */}
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200 shadow-sm">
                 <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -1211,25 +1153,7 @@ const List = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Category * (Current: {editFormData.category || 'None'})
-                    </label>
-                    <select
-                      name="category"
-                      value={editFormData.category || ''}
-                      onChange={handleCategoryChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                      required
-                      style={{ backgroundColor: 'white' }}
-                    >
-                      <option value="">Select Category</option>
-                      <option value="fresh">Fresh</option>
-                      <option value="artificial">Artificial</option>
-                      <option value="mixed">Fresh and Artificial</option>
-                      <option value="bears">Bears</option>
-                    </select>
-                  </div> */}
+                 
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1248,6 +1172,23 @@ const List = () => {
                         </option>
                       ))}
                     </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Discount (%)
+                    </label>
+                    <input
+                      type="number"
+                      name="discount"
+                      value={editFormData.discount}
+                      onChange={handleEditInputChange}
+                      min="0"
+                      max="100"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      placeholder="0"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Enter a value between 0-100%</p>
                   </div>
                 </div>
               </div>
@@ -1451,17 +1392,7 @@ const List = () => {
                               </div>
                             </div>
 
-                            <div>
-                              <label className="block text-xs font-medium text-gray-600 mb-1">Quantity</label>
-                              <input
-                                type="number"
-                                value={selection.count}
-                                onChange={(e) => updateFreshFlowerCount(index, e.target.value)}
-                                placeholder="Number of flowers"
-                                min="1"
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                              />
-                            </div>
+                            
                             
                             {selection.colors.length === 0 && (
                               <p className="text-xs text-red-500 mt-2">
@@ -1554,17 +1485,7 @@ const List = () => {
                               </div>
                             </div>
 
-                            <div>
-                              <label className="block text-xs font-medium text-gray-600 mb-1">Quantity</label>
-                              <input
-                                type="number"
-                                value={selection.count}
-                                onChange={(e) => updateArtificialFlowerCount(index, e.target.value)}
-                                placeholder="Number of flowers"
-                                min="1"
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                              />
-                            </div>
+                            
                             
                             {selection.colors.length === 0 && (
                               <p className="text-xs text-red-500 mt-2">

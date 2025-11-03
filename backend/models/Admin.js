@@ -20,12 +20,31 @@ const adminSchema = new mongoose.Schema({
   password: {
     type: String,
     required: [true, 'Password is required'],
-    minlength: [6, 'Password must be at least 6 characters long']
+    minlength: [6, 'Password must be at least 6 characters long'],
+    select: false
   },
   phone: {
     type: String,
+    required: [true, 'Phone number is required'],
+    unique: true,
     trim: true,
-    default: ''
+    minlength: [10, 'Phone number must be at least 10 characters'],
+    maxlength: [15, 'Phone number cannot exceed 15 characters']
+  },
+  // Unique Admin Code for customers to filter products
+  adminCode: {
+    type: String,
+    unique: true,
+    required: true,
+    trim: true,
+    minlength: [3, 'Admin code must be 3 digits'],
+    maxlength: [3, 'Admin code must be 3 digits'],
+    validate: {
+      validator: function(v) {
+        return /^\d{3}$/.test(v); // Ensures exactly 3 numeric digits
+      },
+      message: 'Admin code must be a 3-digit number'
+    }
   },
   role: {
     type: String,
@@ -35,6 +54,84 @@ const adminSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  accountStatus: {
+    type: String,
+    enum: ['active', 'deactivated', 'suspended'],
+    default: 'active',
+    index: true
+  },
+  // Shop Information
+  shopName: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  shopDescription: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  address: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  contactInfo: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  // Commission & Transaction Tracking
+  lifetimeSales: {
+    type: Number,
+    default: 0,
+    index: true
+  },
+  earnings: {
+    total: {
+      type: Number,
+      default: 0
+    },
+    thisMonth: {
+      type: Number,
+      default: 0
+    },
+    lastMonthPaid: {
+      type: Number,
+      default: 0
+    }
+  },
+  commission: {
+    threshold: {
+      type: Number,
+      default: 50000 // Rs. 50,000 threshold before commission applies
+    },
+    rate: {
+      type: Number,
+      default: 10 // 10% commission
+    },
+    totalDue: {
+      type: Number,
+      default: 0
+    },
+    lastPaidDate: {
+      type: Date,
+      default: null
+    },
+    nextDueDate: {
+      type: Date,
+      default: null
+    }
+  },
+  // Deactivation tracking for overdue payments
+  deactivationReason: {
+    type: String,
+    default: ''
+  },
+  deactivatedAt: {
+    type: Date,
+    default: null
   },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
@@ -51,6 +148,41 @@ const adminSchema = new mongoose.Schema({
   }
 }, {
   timestamps: true
+});
+
+// Generate unique 3-digit admin code before saving (for new admins or existing admins without code)
+adminSchema.pre('save', async function(next) {
+  // Generate admin code if it doesn't exist (for new admins or legacy admins)
+  if (!this.adminCode) {
+    // Generate a simple 3-digit numeric code (100-999)
+    let randomCode = Math.floor(100 + Math.random() * 900); // 3-digit: 100-999
+    this.adminCode = randomCode.toString();
+    
+    // Check if code already exists, regenerate if needed
+    let codeExists = true;
+    let attempts = 0;
+    const maxAttempts = 50; // Prevent infinite loop
+    
+    while (codeExists && attempts < maxAttempts) {
+      const existing = await this.constructor.findOne({ 
+        adminCode: this.adminCode,
+        _id: { $ne: this._id } // Exclude current document
+      });
+      if (!existing) {
+        codeExists = false;
+      } else {
+        randomCode = Math.floor(100 + Math.random() * 900);
+        this.adminCode = randomCode.toString();
+        attempts++;
+      }
+    }
+    
+    if (attempts >= maxAttempts) {
+      throw new Error('Unable to generate unique admin code. Please try again.');
+    }
+  }
+  
+  next();
 });
 
 // Hash password before saving

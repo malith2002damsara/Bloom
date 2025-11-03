@@ -81,8 +81,18 @@ const transactionSchema = new mongoose.Schema({
   // Payment Details
   paymentMethod: {
     type: String,
-    enum: ['bank_transfer', 'cash', 'check', 'digital_wallet', 'other'],
+    enum: ['bank_transfer', 'cash', 'mastercard', 'visa', 'check', 'digital_wallet', 'other'],
     default: 'bank_transfer'
+  },
+  
+  // Payment transaction details (for card payments)
+  paymentTransaction: {
+    transactionId: String,
+    cardLastFour: String,
+    cardType: {
+      type: String,
+      enum: ['mastercard', 'visa', 'other']
+    }
   },
 
   paymentReference: {

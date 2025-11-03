@@ -20,6 +20,7 @@ const userSchema = new mongoose.Schema({
   phone: {
     type: String,
     required: [true, 'Phone number is required'],
+    unique: true,
     trim: true,
     minlength: [10, 'Phone number must be at least 10 characters'],
     maxlength: [15, 'Phone number cannot exceed 15 characters']

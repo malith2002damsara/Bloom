@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import apiService from '../services/api';
-import { motion } from 'framer-motion';
+import FeedbackModal from '../components/FeedbackModal';
 import { 
   FiPackage, 
   FiCalendar, 
@@ -24,7 +24,8 @@ import {
   FiStar,
   FiHeart,
   FiChevronLeft,
-  FiChevronRight
+  FiChevronRight,
+  FiMessageCircle
 } from 'react-icons/fi';
 
 const MyOrders = () => {
@@ -54,6 +55,11 @@ const MyOrders = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isLoadingProductDetails, setIsLoadingProductDetails] = useState(false);
+  
+  // Feedback modal state
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [selectedOrderForFeedback, setSelectedOrderForFeedback] = useState(null);
+  const [selectedProductForFeedback, setSelectedProductForFeedback] = useState(null);
   
   // Debounce search
   const [searchDebounce, setSearchDebounce] = useState(null);
@@ -230,6 +236,20 @@ const MyOrders = () => {
     setSelectedProduct(null);
     setSelectedImageIndex(0);
     setIsLoadingProductDetails(false);
+  };
+
+  const handleFeedbackClick = (order, productItem) => {
+    console.log('Opening feedback modal for:', { order, productItem });
+    setSelectedOrderForFeedback(order);
+    // productItem.productId is the correct field from the Order model
+    setSelectedProductForFeedback(productItem.productId);
+    setIsFeedbackModalOpen(true);
+  };
+
+  const closeFeedbackModal = () => {
+    setIsFeedbackModalOpen(false);
+    setSelectedOrderForFeedback(null);
+    setSelectedProductForFeedback(null);
   };
 
   const getStatusIcon = (status) => {
@@ -498,12 +518,9 @@ const MyOrders = () => {
                   </div>
                   <div className="space-y-3">
                     {(expandedOrders.has(order._id) ? order.items : order.items?.slice(0, 2))?.map((item, itemIndex) => (
-                      <motion.div 
+                      <div 
                         key={itemIndex} 
                         className="flex items-center space-x-3 p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.3, delay: itemIndex * 0.1 }}
                       >
                         <div className="relative group cursor-pointer" onClick={() => handleProductClick(item, order)} title="Click to view product details">
                           <img
@@ -529,8 +546,30 @@ const MyOrders = () => {
                             <span className="text-purple-600 font-medium">Qty: {item.quantity}</span>
                             <span className="font-bold text-green-600">${item.price?.toFixed(2)}</span>
                           </div>
+                          
+                          {/* Feedback Button - Only show for delivered orders */}
+                          {order.orderStatus?.toLowerCase() === 'delivered' && !item.feedbackSubmitted && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleFeedbackClick(order, item);
+                              }}
+                              className="mt-2 flex items-center space-x-1 px-2 py-1 bg-gradient-to-r from-yellow-400 to-orange-400 text-white text-xs rounded-full hover:from-yellow-500 hover:to-orange-500 transition-all shadow-sm"
+                            >
+                              <FiMessageCircle size={12} />
+                              <span>Write Review</span>
+                            </button>
+                          )}
+                          
+                          {/* Feedback Submitted Badge */}
+                          {item.feedbackSubmitted && (
+                            <div className="mt-2 flex items-center space-x-1 px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
+                              <FiCheck size={12} />
+                              <span>Review Submitted</span>
+                            </div>
+                          )}
                         </div>
-                      </motion.div>
+                      </div>
                     ))}
                     {!expandedOrders.has(order._id) && order.items?.length > 2 && (
                       <div className="text-center text-xs text-gray-500 py-2 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-100">
@@ -675,11 +714,8 @@ const MyOrders = () => {
               }
             }}
           >
-            <motion.div
+            <div
               className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3 }}
             >
               {/* Modal Header */}
               <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
@@ -926,9 +962,17 @@ const MyOrders = () => {
                   </Link>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </div>
         )}
+
+        {/* Feedback Modal */}
+        <FeedbackModal
+          isOpen={isFeedbackModalOpen}
+          onClose={closeFeedbackModal}
+          order={selectedOrderForFeedback}
+          productId={selectedProductForFeedback}
+        />
       </div>
     </div>
   );
