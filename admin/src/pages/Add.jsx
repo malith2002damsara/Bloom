@@ -15,13 +15,12 @@ const Add = () => {
     description: '',
     category: '',
     occasion: '',
-    discount: 0, // Discount percentage (0-100)
     flowerSelections: [], // Array of {flower: string, colors: string[]}
     artificialFlowerSelections: [], // Array of {flower: string, colors: string[], count: ''}
     freshFlowerSelections: [], // Array of {flower: string, colors: string[], count: ''}
-    sizes: [], // Array of {size: string, flowerCount: string, price: '', dimensions: {height: '', width: '', depth: ''}}
+    sizes: [], // Array of {size: string, flowerCount: string, price: '', oldPrice: '', dimensions: {height: '', width: '', depth: ''}}
     bearDetails: {
-      sizes: [], // Array of {size: string, price: '', dimensions: {height: '', width: '', depth: ''}}
+      sizes: [], // Array of {size: string, price: '', oldPrice: '', dimensions: {height: '', width: '', depth: ''}}
       colors: [], // Array of bear colors
     },
     dimensions: {
@@ -115,6 +114,7 @@ const Add = () => {
         size: selectedSize, 
         flowerCount: '',
         price: '',
+        oldPrice: '',
         dimensions: { height: '', width: '', depth: '' }
       }]
     }));
@@ -253,6 +253,7 @@ const Add = () => {
           sizes: [...prev.bearDetails.sizes, {
             size: size,
             price: '',
+            oldPrice: '',
             dimensions: { height: '', width: '', depth: '' }
           }]
         }
@@ -491,7 +492,6 @@ const Add = () => {
       submitData.append('description', formData.description || '');
       submitData.append('category', formData.category);
       submitData.append('occasion', formData.occasion);
-      submitData.append('discount', formData.discount || 0);
 
       if (formData.category === 'bears') {
         // Handle bear product data
@@ -642,7 +642,6 @@ const Add = () => {
           description: '',
           category: '',
           occasion: '',
-          discount: 0,
           flowerSelections: [],
           artificialFlowerSelections: [],
           freshFlowerSelections: [],
@@ -826,36 +825,6 @@ const Add = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Discount Percentage (Optional)
-              </label>
-              <div className="relative">
-                <input
-                  type="number"
-                  name="discount"
-                  value={formData.discount}
-                  onChange={(e) => {
-                    const value = Math.max(0, Math.min(100, Number(e.target.value)));
-                    handleInputChange({ target: { name: 'discount', value, type: 'number' } });
-                  }}
-                  min="0"
-                  max="100"
-                  step="1"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                  placeholder="0"
-                />
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
-                  %
-                </div>
-              </div>
-              {formData.discount > 0 && (
-                <p className="mt-2 text-sm text-green-600 font-medium">
-                  🎉 {formData.discount}% discount will be applied to all sizes
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Description (Optional)
               </label>
               <textarea
@@ -923,7 +892,7 @@ const Add = () => {
                           </button>
                         </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                           <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">Flower Count</label>
                             <input
@@ -936,18 +905,44 @@ const Add = () => {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Price (LKR)</label>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Old Price (LKR) - Optional</label>
+                            <input
+                              type="number"
+                              value={item.oldPrice || ''}
+                              onChange={(e) => updateSize(index, 'oldPrice', e.target.value)}
+                              placeholder="Original price"
+                              min="0"
+                              step="0.01"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">New Price (LKR)</label>
                             <input
                               type="number"
                               value={item.price}
                               onChange={(e) => updateSize(index, 'price', e.target.value)}
-                              placeholder="Price for this size"
+                              placeholder="Current price"
                               min="0"
                               step="0.01"
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                             />
                           </div>
                         </div>
+                        
+                        {/* Display calculated discount */}
+                        {item.oldPrice > 0 && item.price > 0 && item.price < item.oldPrice && (
+                          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-green-800">
+                                Discount: {Math.round(((item.oldPrice - item.price) / item.oldPrice) * 100 * 100) / 100}% OFF
+                              </span>
+                              <span className="text-xs text-green-600">
+                                Save Rs. {(item.oldPrice - item.price).toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                        )}
                         
                         {/* Dimensions for this size */}
                         <div className="bg-blue-50 p-3 rounded-lg">
@@ -1270,18 +1265,46 @@ const Add = () => {
                           </div>
                           
                           {/* Price for this bear size */}
-                          <div className="mb-4">
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Price ($)</label>
-                            <input
-                              type="number"
-                              value={item.price || ''}
-                              onChange={(e) => updateBearSize(index, 'price', e.target.value)}
-                              step="0.01"
-                              min="0"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                              placeholder="Price for this size"
-                            />
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Old Price (Rs.) - Optional</label>
+                              <input
+                                type="number"
+                                value={item.oldPrice || ''}
+                                onChange={(e) => updateBearSize(index, 'oldPrice', e.target.value)}
+                                step="0.01"
+                                min="0"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                                placeholder="Original price"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">New Price (Rs.)</label>
+                              <input
+                                type="number"
+                                value={item.price || ''}
+                                onChange={(e) => updateBearSize(index, 'price', e.target.value)}
+                                step="0.01"
+                                min="0"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                                placeholder="Current price"
+                              />
+                            </div>
                           </div>
+                          
+                          {/* Display calculated discount */}
+                          {item.oldPrice > 0 && item.price > 0 && item.price < item.oldPrice && (
+                            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium text-green-800">
+                                  Discount: {Math.round(((item.oldPrice - item.price) / item.oldPrice) * 100 * 100) / 100}% OFF
+                                </span>
+                                <span className="text-xs text-green-600">
+                                  Save Rs. {(item.oldPrice - item.price).toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          )}
                           
                           {/* Dimensions for this bear size */}
                           <div className="bg-blue-50 p-3 rounded-lg">

@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 import { useCart } from '../context/CartContext';
-import { FiX, FiShoppingCart, FiHeart, FiStar, FiInfo, FiPackage, FiTruck, FiShield, FiMaximize, FiEye, FiRotateCw, FiMove } from 'react-icons/fi';
+import { FiX, FiShoppingCart, FiHeart, FiStar, FiInfo, FiPackage, FiTruck, FiShield, FiMaximize, FiEye, FiRotateCw, FiMove, FiMessageCircle } from 'react-icons/fi';
 import ProductReviews from './ProductReviews';
+import apiService from '../services/api';
 
 const ProductCard = ({ product }) => {
   const { addToCart } = useCart();
@@ -16,6 +17,8 @@ const ProductCard = ({ product }) => {
   const [is3DMode, setIs3DMode] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [topReviews, setTopReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
 
   // Get available sizes from product data
   const getAvailableSizes = () => {
@@ -68,6 +71,37 @@ const ProductCard = ({ product }) => {
       setSelectedSize(availableSizes[0].id);
     }
   }, [availableSizes, selectedSize]);
+
+  // Fetch top 2 reviews for this product
+  useEffect(() => {
+    const fetchTopReviews = async () => {
+      if (!product._id && !product.id) return;
+      
+      try {
+        setLoadingReviews(true);
+        const productId = product._id || product.id;
+        const response = await apiService.getProductFeedback(productId, {
+          page: 1,
+          limit: 2 // Get only top 2 reviews for card display
+        });
+        
+        if (response.success && response.data?.feedbacks) {
+          // Get top 2 reviews with rating 4 or 5
+          const topRated = response.data.feedbacks
+            .filter(review => review.rating >= 4)
+            .slice(0, 2);
+          setTopReviews(topRated);
+        }
+      } catch (error) {
+        console.error('Error fetching top reviews for product card:', error);
+        setTopReviews([]);
+      } finally {
+        setLoadingReviews(false);
+      }
+    };
+
+    fetchTopReviews();
+  }, [product._id, product.id]);
 
   const handleQuantityChange = (change) => {
     const newQuantity = quantity + change;
@@ -238,6 +272,60 @@ const ProductCard = ({ product }) => {
               </p>
             )}
           </div>
+
+          {/* Top Reviews Section - Show on card */}
+          {topReviews.length > 0 && (
+            <div className="mb-2 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg p-2">
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center space-x-1">
+                  <FiMessageCircle className="h-3 w-3 text-yellow-600" />
+                  <span className="text-xs font-semibold text-yellow-800">Top Reviews</span>
+                </div>
+                <button 
+                  onClick={() => setShowQuickView(true)}
+                  className="text-xs text-yellow-700 hover:text-yellow-900 font-medium underline"
+                >
+                  View All
+                </button>
+              </div>
+              <div className="space-y-1.5">
+                {topReviews.map((review, index) => (
+                  <div key={index} className="bg-white rounded p-1.5 border border-yellow-100">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <div className="flex items-center space-x-1">
+                        <div className="flex">
+                          {[...Array(5)].map((_, i) => (
+                            <FiStar
+                              key={i}
+                              className={`h-2.5 w-2.5 ${
+                                i < review.rating ? 'text-yellow-400 fill-current' : 'text-gray-300'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-xs font-medium text-gray-700">
+                          {review.userId?.name || 'Anonymous'}
+                        </span>
+                      </div>
+                      {review.isVerifiedPurchase && (
+                        <span className="text-xs text-green-600">✓</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-600 line-clamp-2 leading-tight">
+                      {review.comment}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {loadingReviews && (
+            <div className="mb-2 bg-gray-50 rounded-lg p-2 text-center">
+              <span className="text-xs text-gray-500">Loading reviews...</span>
+            </div>
+          )}
+
           <div className="flex space-x-1">
             <button
               onClick={handleQuickAddToCart}
@@ -784,6 +872,11 @@ const ProductCard = ({ product }) => {
                           </div>
                         </div>
                       </div>
+                    </div>
+                    
+                    {/* Divider */}
+                    <div className="px-3 sm:px-4 md:px-6 py-4">
+                      <div className="border-t border-gray-200"></div>
                     </div>
                     
                     {/* Customer Reviews Section */}

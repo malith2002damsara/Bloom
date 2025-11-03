@@ -568,10 +568,11 @@ const createProduct = async (req, res) => {
 
     // Add category-specific data
     if (category === 'bears') {
-      // Process bear details with proper price conversion
+      // Process bear details with proper price conversion and oldPrice
       const processedBearSizes = parsedBearDetails.sizes.map(size => ({
         ...size,
-        price: parseFloat(size.price),
+        price: parseFloat(size.price) || 0,
+        oldPrice: parseFloat(size.oldPrice) || 0,
         dimensions: {
           height: size.dimensions?.height ? parseFloat(size.dimensions.height) : 0,
           width: size.dimensions?.width ? parseFloat(size.dimensions.width) : 0,
@@ -584,10 +585,11 @@ const createProduct = async (req, res) => {
         colors: parsedBearDetails.colors || []
       };
     } else {
-      // Process flower bouquet sizes with proper price conversion
+      // Process flower bouquet sizes with proper price conversion and oldPrice
       const processedSizes = parsedSizes.map(size => ({
         ...size,
-        price: parseFloat(size.price),
+        price: parseFloat(size.price) || 0,
+        oldPrice: parseFloat(size.oldPrice) || 0,
         dimensions: {
           height: size.dimensions?.height ? parseFloat(size.dimensions.height) : 0,
           width: size.dimensions?.width ? parseFloat(size.dimensions.width) : 0,
@@ -822,10 +824,11 @@ const updateProduct = async (req, res) => {
     // Category-specific updates
     if (category === 'bears' || existingProduct.category === 'bears') {
       if (parsedBearDetails && Object.keys(parsedBearDetails).length > 0) {
-        // Process bear details with proper price conversion
+        // Process bear details with proper price conversion and oldPrice
         const processedBearSizes = parsedBearDetails.sizes ? parsedBearDetails.sizes.map(size => ({
           ...size,
-          price: parseFloat(size.price),
+          price: parseFloat(size.price) || 0,
+          oldPrice: parseFloat(size.oldPrice) || 0,
           dimensions: {
             height: size.dimensions?.height ? parseFloat(size.dimensions.height) : 0,
             width: size.dimensions?.width ? parseFloat(size.dimensions.width) : 0,
@@ -850,10 +853,11 @@ const updateProduct = async (req, res) => {
     } else {
       // Flower bouquet updates
       if (parsedSizes.length > 0) {
-        // Process flower bouquet sizes with proper price conversion
+        // Process flower bouquet sizes with proper price conversion and oldPrice
         const processedSizes = parsedSizes.map(size => ({
           ...size,
-          price: parseFloat(size.price),
+          price: parseFloat(size.price) || 0,
+          oldPrice: parseFloat(size.oldPrice) || 0,
           dimensions: {
             height: size.dimensions?.height ? parseFloat(size.dimensions.height) : 0,
             width: size.dimensions?.width ? parseFloat(size.dimensions.width) : 0,

@@ -35,13 +35,15 @@ const adminSchema = new mongoose.Schema({
   adminCode: {
     type: String,
     unique: true,
-    required: true,
+    sparse: true, // Allow unique index with null/undefined values
     trim: true,
     minlength: [3, 'Admin code must be 3 digits'],
     maxlength: [3, 'Admin code must be 3 digits'],
     validate: {
       validator: function(v) {
-        return /^\d{3}$/.test(v); // Ensures exactly 3 numeric digits
+        // Allow undefined/null (will be generated in pre-save), but if present must be 3 digits
+        if (!v) return true;
+        return /^\d{3}$/.test(v);
       },
       message: 'Admin code must be a 3-digit number'
     }
@@ -150,52 +152,48 @@ const adminSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Generate unique 3-digit admin code before saving (for new admins or existing admins without code)
+// Combined pre-save hook: Generate admin code and hash password
 adminSchema.pre('save', async function(next) {
-  // Generate admin code if it doesn't exist (for new admins or legacy admins)
-  if (!this.adminCode) {
-    // Generate a simple 3-digit numeric code (100-999)
-    let randomCode = Math.floor(100 + Math.random() * 900); // 3-digit: 100-999
-    this.adminCode = randomCode.toString();
-    
-    // Check if code already exists, regenerate if needed
-    let codeExists = true;
-    let attempts = 0;
-    const maxAttempts = 50; // Prevent infinite loop
-    
-    while (codeExists && attempts < maxAttempts) {
-      const existing = await this.constructor.findOne({ 
-        adminCode: this.adminCode,
-        _id: { $ne: this._id } // Exclude current document
-      });
-      if (!existing) {
-        codeExists = false;
-      } else {
-        randomCode = Math.floor(100 + Math.random() * 900);
-        this.adminCode = randomCode.toString();
-        attempts++;
+  try {
+    // Generate admin code if it doesn't exist (for new admins or legacy admins)
+    if (!this.adminCode) {
+      // Generate a simple 3-digit numeric code (100-999)
+      let randomCode = Math.floor(100 + Math.random() * 900); // 3-digit: 100-999
+      this.adminCode = randomCode.toString();
+      
+      // Check if code already exists, regenerate if needed
+      let codeExists = true;
+      let attempts = 0;
+      const maxAttempts = 50; // Prevent infinite loop
+      
+      while (codeExists && attempts < maxAttempts) {
+        const existing = await this.constructor.findOne({ 
+          adminCode: this.adminCode,
+          _id: { $ne: this._id } // Exclude current document
+        });
+        if (!existing) {
+          codeExists = false;
+        } else {
+          randomCode = Math.floor(100 + Math.random() * 900);
+          this.adminCode = randomCode.toString();
+          attempts++;
+        }
+      }
+      
+      if (attempts >= maxAttempts) {
+        throw new Error('Unable to generate unique admin code. Please try again.');
       }
     }
     
-    if (attempts >= maxAttempts) {
-      throw new Error('Unable to generate unique admin code. Please try again.');
-    }
-  }
-  
-  next();
-});
-
-// Hash password before saving
-adminSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
-  
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    
-    // Set passwordChangedAt if password is being changed (not on creation)
-    if (!this.isNew) {
-      this.passwordChangedAt = Date.now() - 1000; // Subtract 1 second to ensure token is created after password change
+    // Hash password if modified
+    if (this.isModified('password')) {
+      const salt = await bcrypt.genSalt(10);
+      this.password = await bcrypt.hash(this.password, salt);
+      
+      // Set passwordChangedAt if password is being changed (not on creation)
+      if (!this.isNew) {
+        this.passwordChangedAt = Date.now() - 1000; // Subtract 1 second to ensure token is created after password change
+      }
     }
     
     next();

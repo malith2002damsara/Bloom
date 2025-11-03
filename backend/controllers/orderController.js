@@ -1,5 +1,6 @@
 const Order = require('../models/Order');
 const Product = require('../models/Product');
+const Feedback = require('../models/Feedback');
 const { validationResult } = require('express-validator');
 const { createOrderNotification } = require('./notificationController');
 
@@ -165,6 +166,33 @@ const getUserOrders = async (req, res) => {
 
     console.log(`✅ Retrieved ${orders.length} orders in optimized query`);
 
+    // Check feedback status for each product in delivered orders
+    // This prevents duplicate feedback submissions
+    for (const order of orders) {
+      if (order.orderStatus === 'delivered' && order.items && order.items.length > 0) {
+        // Get all feedback for this user and order
+        const feedbacks = await Feedback.find({
+          userId: req.user._id,
+          orderId: order._id
+        }).select('productId').lean();
+
+        // Create a Set of product IDs that have feedback
+        const feedbackProductIds = new Set(
+          feedbacks.map(f => f.productId.toString())
+        );
+
+        // Mark each item with feedback status
+        order.items.forEach(item => {
+          item.feedbackSubmitted = feedbackProductIds.has(item.productId.toString());
+        });
+      } else if (order.items) {
+        // For non-delivered orders, mark all items as no feedback
+        order.items.forEach(item => {
+          item.feedbackSubmitted = false;
+        });
+      }
+    }
+
     res.json({
       success: true,
       message: 'Orders retrieved successfully',
@@ -215,6 +243,26 @@ const getOrderById = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Order not found'
+      });
+    }
+
+    // Check feedback status for each product if order is delivered
+    if (order.orderStatus === 'delivered' && order.items && order.items.length > 0) {
+      const feedbacks = await Feedback.find({
+        userId: req.user._id,
+        orderId: order._id
+      }).select('productId').lean();
+
+      const feedbackProductIds = new Set(
+        feedbacks.map(f => f.productId.toString())
+      );
+
+      order.items.forEach(item => {
+        item.feedbackSubmitted = feedbackProductIds.has(item.productId.toString());
+      });
+    } else if (order.items) {
+      order.items.forEach(item => {
+        item.feedbackSubmitted = false;
       });
     }
 

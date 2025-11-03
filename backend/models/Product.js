@@ -17,14 +17,20 @@ const productSchema = new mongoose.Schema({
     min: [0, 'Price cannot be negative'],
     default: 0
   },
-  // Discount percentage (0-100)
+  // Old price before discount (for display purposes)
+  oldPrice: {
+    type: Number,
+    min: [0, 'Old price cannot be negative'],
+    default: 0
+  },
+  // Discount percentage (0-100) - Auto-calculated from oldPrice and price
   discount: {
     type: Number,
     min: [0, 'Discount cannot be negative'],
     max: [100, 'Discount cannot exceed 100%'],
     default: 0
   },
-  // Calculated discounted price
+  // Calculated discounted price (same as price, kept for backwards compatibility)
   discountedPrice: {
     type: Number,
     min: [0, 'Price cannot be negative'],
@@ -83,6 +89,11 @@ const productSchema = new mongoose.Schema({
       type: Number,
       required: true,
       min: [0, 'Price cannot be negative']
+    },
+    oldPrice: {
+      type: Number,
+      min: [0, 'Old price cannot be negative'],
+      default: 0
     },
     dimensions: {
       height: {
@@ -165,6 +176,11 @@ const productSchema = new mongoose.Schema({
         type: Number,
         required: true,
         min: [0, 'Price cannot be negative']
+      },
+      oldPrice: {
+        type: Number,
+        min: [0, 'Old price cannot be negative'],
+        default: 0
       },
       dimensions: {
         height: {
@@ -257,12 +273,20 @@ productSchema.index({ adminId: 1, category: 1 }); // Compound index for better p
 
 // Update status based on stock
 productSchema.pre('save', function(next) {
-  // Calculate discounted price
-  if (this.discount > 0) {
-    this.discountedPrice = this.price - (this.price * this.discount / 100);
+  // Auto-calculate discount percentage if oldPrice is provided
+  if (this.oldPrice > 0 && this.price > 0) {
+    if (this.price < this.oldPrice) {
+      // Calculate discount percentage: ((oldPrice - newPrice) / oldPrice) * 100
+      this.discount = Math.round(((this.oldPrice - this.price) / this.oldPrice) * 100 * 100) / 100; // Round to 2 decimal places
+    } else {
+      this.discount = 0;
+    }
   } else {
-    this.discountedPrice = this.price;
+    this.discount = 0;
   }
+  
+  // Set discounted price (same as price, kept for backwards compatibility)
+  this.discountedPrice = this.price;
   
   // Update stock status
   if (this.stock === 0) {

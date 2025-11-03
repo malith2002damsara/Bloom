@@ -37,8 +37,7 @@ const orderSchema = new mongoose.Schema({
     required: true
   },
   orderNumber: {
-    type: String,
-    unique: true
+    type: String
   },
   items: [orderItemSchema],
   customerInfo: {

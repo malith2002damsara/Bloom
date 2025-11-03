@@ -17,7 +17,6 @@ const Home = () => {
         <Navbar />
         <Hero />
         <ProductGrid />
-        {/* <Customizer /> */}
         <Features />
         <Testimonials />
        

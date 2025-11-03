@@ -16,18 +16,29 @@ const ProductReviews = ({ productId }) => {
 
   useEffect(() => {
     fetchReviews();
-    fetchTopComments();
+    fetchTopCommentsForProduct();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId]);
 
   const fetchReviews = async (page = 1) => {
     try {
       setLoading(true);
+      console.log('🔍 Fetching reviews for productId:', productId, 'page:', page);
+      
+      if (!productId) {
+        console.error('❌ ProductId is missing!');
+        setReviews([]);
+        setLoading(false);
+        return;
+      }
+      
       const response = await apiService.getProductFeedback(productId, {
         page,
         limit: 5
       });
 
+      console.log('✅ Reviews response:', response);
+      
       setReviews(response.data?.feedbacks || []);
       setPagination({
         page: response.data?.pagination?.page || 1,
@@ -35,20 +46,51 @@ const ProductReviews = ({ productId }) => {
         totalPages: response.data?.pagination?.pages || 1,
         total: response.data?.pagination?.total || 0
       });
+      
+      console.log('📊 Loaded reviews:', response.data?.feedbacks?.length || 0, 'Total:', response.data?.pagination?.total || 0);
     } catch (error) {
-      console.error('Error fetching reviews:', error);
+      console.error('❌ Error fetching reviews:', error);
       setReviews([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchTopComments = async () => {
+  const fetchTopCommentsForProduct = async () => {
     try {
-      const response = await apiService.getTopComments();
-      setTopComments(response.data?.comments || []);
+      console.log('🔍 Fetching top comments for productId:', productId);
+      
+      if (!productId) {
+        console.error('❌ ProductId is missing for top comments!');
+        setTopComments([]);
+        return;
+      }
+      
+      // Fetch all reviews for this specific product to get top comments
+      const response = await apiService.getProductFeedback(productId, {
+        page: 1,
+        limit: 100 // Get more reviews to find top ones
+      });
+      
+      const allProductReviews = response.data?.feedbacks || [];
+      console.log('📊 All reviews for top comments:', allProductReviews.length);
+      
+      // Filter and sort to get top comments (rating 4 or 5, sorted by rating)
+      const topProductComments = allProductReviews
+        .filter(review => review.rating >= 4)
+        .sort((a, b) => {
+          // Sort by rating (descending), then by date (newest first)
+          if (b.rating !== a.rating) {
+            return b.rating - a.rating;
+          }
+          return new Date(b.createdAt) - new Date(a.createdAt);
+        })
+        .slice(0, 10); // Get top 10
+      
+      console.log('⭐ Top comments found:', topProductComments.length);
+      setTopComments(topProductComments);
     } catch (error) {
-      console.error('Error fetching top comments:', error);
+      console.error('❌ Error fetching top comments for product:', error);
       setTopComments([]);
     }
   };
@@ -113,6 +155,19 @@ const ProductReviews = ({ productId }) => {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading reviews...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if productId is missing
+  if (!productId) {
+    return (
+      <div className="bg-red-50 rounded-xl shadow-sm border border-red-200 p-8">
+        <div className="text-center">
+          <FiMessageCircle className="w-16 h-16 text-red-300 mx-auto mb-4" />
+          <p className="text-red-600 font-medium mb-2">Unable to load reviews</p>
+          <p className="text-red-500 text-sm">Product ID is missing</p>
         </div>
       </div>
     );
