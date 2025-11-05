@@ -2,6 +2,8 @@ const { Order, Product, Feedback } = require('../models');
 const { validationResult } = require('express-validator');
 const { createOrderNotification } = require('./notificationController');
 const { Op } = require('sequelize');
+const Stripe = require('stripe');
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
 // @desc    Create new order
 // @route   POST /api/orders
@@ -54,7 +56,13 @@ const createOrder = async (req, res) => {
     const order = await Order.create({
       userId: req.user.id,
       items: enrichedItems,
-      customerInfo,
+      customerName: customerInfo?.name || '',
+      customerEmail: customerInfo?.email || '',
+      customerPhone: customerInfo?.phone || '',
+      customerAddress: customerInfo?.address || '',
+      customerCity: customerInfo?.city || '',
+      customerZip: customerInfo?.zip || '',
+      customerNotes: customerInfo?.notes || '',
       paymentMethod: paymentMethod || 'cod',
       subtotal: subtotal || total,
       tax: tax || 0,
@@ -148,16 +156,31 @@ const getUserOrders = async (req, res) => {
     }
 
     // Execute optimized query with parallel execution - PostgreSQL/Sequelize
-    const [orders, total] = await Promise.all([
+    const [ordersRaw, total] = await Promise.all([
       Order.findAll({
         where,
-        attributes: ['id', 'orderNumber', 'items', 'customerInfo', 'orderStatus', 'paymentMethod', 'paymentStatus', 'total', 'createdAt', 'estimatedDelivery', 'trackingNumber'],
+        attributes: ['id', 'orderNumber', 'items', 'customerName', 'customerEmail', 'customerPhone', 'customerAddress', 'customerCity', 'customerZip', 'customerNotes', 'orderStatus', 'paymentMethod', 'paymentStatus', 'total', 'createdAt', 'estimatedDelivery', 'trackingNumber'],
         order,
         offset: skip,
         limit: limit
       }),
       Order.count({ where })
     ]);
+
+    // Normalize customerInfo shape for frontend compatibility
+    const orders = ordersRaw.map(o => {
+      const json = o.toJSON();
+      json.customerInfo = {
+        name: json.customerName,
+        email: json.customerEmail,
+        phone: json.customerPhone,
+        address: json.customerAddress,
+        city: json.customerCity,
+        zip: json.customerZip,
+        notes: json.customerNotes
+      };
+      return json;
+    });
 
     console.log(`✅ Retrieved ${orders.length} orders in optimized query`);
 
@@ -214,6 +237,59 @@ const getUserOrders = async (req, res) => {
       message: 'Server error while retrieving orders',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
+  }
+};
+
+// @desc    Create Stripe PaymentIntent for card payments (MasterCard/Visa)
+// @route   POST /api/orders/payment-intent
+// @access  Private
+const createPaymentIntent = async (req, res) => {
+  try {
+    if (!stripe) {
+      return res.status(400).json({ success: false, message: 'Stripe not configured' });
+    }
+
+    const { amount, currency = 'lkr', metadata = {} } = req.body;
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid amount' });
+    }
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(amount * 100),
+      currency,
+      payment_method_types: ['card'],
+      metadata
+    });
+
+    return res.json({
+      success: true,
+      data: { clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id }
+    });
+  } catch (error) {
+    console.error('Create payment intent error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to create payment intent' });
+  }
+};
+
+// @desc    Mark order as paid after successful card payment
+// @route   POST /api/orders/:id/mark-paid
+// @access  Private
+const markOrderPaid = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const order = await Order.findOne({ where: { id, userId: req.user.id } });
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    order.paymentMethod = 'card';
+    order.paymentStatus = 'paid';
+    await order.save();
+
+    return res.json({ success: true, message: 'Order marked as paid', data: { order } });
+  } catch (error) {
+    console.error('Mark order paid error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to mark order as paid' });
   }
 };
 
@@ -482,5 +558,7 @@ module.exports = {
   getOrderById,
   cancelOrder,
   getAllOrders,
-  updateOrderStatus
+  updateOrderStatus,
+  createPaymentIntent,
+  markOrderPaid
 };

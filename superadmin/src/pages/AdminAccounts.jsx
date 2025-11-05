@@ -68,7 +68,7 @@ const AdminAccounts = () => {
 
       if (response.success) {
         setAdmins(admins.map(admin => 
-          admin._id === adminId 
+          admin.id === adminId 
             ? { ...admin, status: newStatus }
             : admin
         ));
@@ -83,7 +83,7 @@ const AdminAccounts = () => {
       try {
         const response = await superAdminAPI.deleteAdminAccount(adminId);
         if (response.success) {
-          setAdmins(admins.filter(admin => admin._id !== adminId));
+          setAdmins(admins.filter(admin => admin.id !== adminId));
           alert('Admin account deleted successfully!');
         }
       } catch (error) {
@@ -171,7 +171,7 @@ const AdminAccounts = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredAdmins.map((admin) => (
-                <tr key={admin._id} className="hover:bg-gray-50">
+                <tr key={admin.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="w-10 h-10 bg-primary-green rounded-full flex items-center justify-center">
@@ -181,7 +181,7 @@ const AdminAccounts = () => {
                       </div>
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">{admin.name}</div>
-                        <div className="text-sm text-gray-500">ID: {admin._id.slice(-6)}</div>
+                        <div className="text-sm text-gray-500">ID: {admin.id ? admin.id.slice(-6) : 'N/A'}</div>
                       </div>
                     </div>
                   </td>
@@ -202,7 +202,7 @@ const AdminAccounts = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                     <button
-                      onClick={() => handleToggleStatus(admin._id, admin.status || 'active')}
+                      onClick={() => handleToggleStatus(admin.id, admin.status || 'active')}
                       className={`px-3 py-1 rounded text-xs ${
                         admin.status === 'active'
                           ? 'bg-red-100 text-red-800 hover:bg-red-200'
@@ -218,7 +218,7 @@ const AdminAccounts = () => {
                       Edit
                     </button>
                     <button
-                      onClick={() => handleDeleteAdmin(admin._id)}
+                      onClick={() => handleDeleteAdmin(admin.id)}
                       className="px-3 py-1 bg-red-100 text-red-800 rounded text-xs hover:bg-red-200"
                     >
                       Delete

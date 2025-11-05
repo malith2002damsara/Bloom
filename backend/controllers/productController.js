@@ -122,7 +122,7 @@ const getProducts = async (req, res) => {
           order = [['name', 'DESC']];
           break;
         case 'rating':
-          order = [['ratings', 'DESC']];
+          order = [['ratingsAverage', 'DESC']];
           break;
         case 'discount':
           order = [['discount', 'DESC']];
@@ -973,8 +973,17 @@ const getHomePageProducts = async (req, res) => {
     
     console.log(`Found ${activeAdmins.length} active admins`);
 
+    if (activeAdminIds.length === 0) {
+      return res.json({
+        success: true,
+        message: 'Home page products retrieved successfully',
+        data: { products: [] }
+      });
+    }
+
     // Get 10 newest products, ensuring they are from different admins
     const { sequelize } = require('../config/database');
+    const { QueryTypes } = require('sequelize');
     const products = await sequelize.query(`
       SELECT DISTINCT ON ("adminId") *
       FROM products
@@ -983,8 +992,8 @@ const getHomePageProducts = async (req, res) => {
       ORDER BY "adminId", "createdAt" DESC
       LIMIT 10
     `, {
-      replacements: [activeAdminIds],
-      type: sequelize.QueryTypes.SELECT
+      bind: [activeAdminIds],
+      type: QueryTypes.SELECT
     });
 
     console.log(`✅ Retrieved ${products.length} products from different admins for home page`);

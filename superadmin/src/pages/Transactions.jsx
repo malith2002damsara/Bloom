@@ -231,7 +231,7 @@ const Transactions = () => {
             <select value={filters.adminId} onChange={(e) => setFilters({ ...filters, adminId: e.target.value })}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
               <option value="">All Admins</option>
-              {admins.map(admin => <option key={admin._id} value={admin._id}>{admin.name}</option>)}
+              {admins.map(admin => <option key={admin.id} value={admin.id}>{admin.name}</option>)}
             </select>
             <select value={filters.month} onChange={(e) => setFilters({ ...filters, month: e.target.value })}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">

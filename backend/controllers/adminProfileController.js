@@ -5,9 +5,9 @@ const Admin = require('../models/Admin');
 // @access  Private (Admin only)
 const getAdminProfile = async (req, res) => {
   try {
-    const admin = await Admin.findByPk(req.user.id)
-      .select('-password')
-      .lean();
+    const admin = await Admin.findByPk(req.user.id, {
+      attributes: { exclude: ['password'] }
+    });
 
     if (!admin) {
       return res.status(404).json({
@@ -54,9 +54,15 @@ const updateAdminProfile = async (req, res) => {
       });
     }
 
-    // Check if email is being changed and if it's already taken
+    // Check if email is being changed and if it's already taken (Sequelize)
     if (email && email !== admin.email) {
-      const emailExists = await Admin.findOne({ email, _id: { $ne: req.user.id } });
+      const { Op } = require('sequelize');
+      const emailExists = await Admin.findOne({ 
+        where: { 
+          email, 
+          id: { [Op.ne]: req.user.id } 
+        } 
+      });
       if (emailExists) {
         return res.status(400).json({
           success: false,
@@ -66,9 +72,15 @@ const updateAdminProfile = async (req, res) => {
       admin.email = email;
     }
 
-    // Check if phone is being changed and if it's already taken
+    // Check if phone is being changed and if it's already taken (Sequelize)
     if (phone && phone !== admin.phone) {
-      const phoneExists = await Admin.findOne({ phone, _id: { $ne: req.user.id } });
+      const { Op } = require('sequelize');
+      const phoneExists = await Admin.findOne({ 
+        where: { 
+          phone, 
+          id: { [Op.ne]: req.user.id } 
+        } 
+      });
       if (phoneExists) {
         return res.status(400).json({
           success: false,
@@ -87,8 +99,10 @@ const updateAdminProfile = async (req, res) => {
 
     await admin.save();
 
-    // Return admin without password
-    const updatedAdmin = await Admin.findByPk(req.user.id).select('-password');
+    // Return admin without password (Sequelize - use attributes)
+    const updatedAdmin = await Admin.findByPk(req.user.id, {
+      attributes: { exclude: ['password'] }
+    });
 
     res.status(200).json({
       success: true,
@@ -110,9 +124,9 @@ const updateAdminProfile = async (req, res) => {
 // @access  Private (Admin only)
 const getShopInfo = async (req, res) => {
   try {
-    const admin = await Admin.findByPk(req.user.id)
-      .select('name shopName shopDescription adminCode contactInfo address isActive')
-      .lean();
+    const admin = await Admin.findByPk(req.user.id, {
+      attributes: ['id', 'name', 'shopName', 'shopDescription', 'adminCode', 'contactInfo', 'address', 'isActive']
+    });
 
     if (!admin) {
       return res.status(404).json({

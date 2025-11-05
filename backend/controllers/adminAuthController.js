@@ -24,8 +24,8 @@ const adminLogin = async (req, res) => {
       });
     }
 
-    // Find admin by email
-    const admin = await Admin.findOne({ email }).select('+password');
+    // Find admin by email (Sequelize - password is included by default)
+    const admin = await Admin.findOne({ where: { email } });
 
     if (!admin) {
       return res.status(401).json({
@@ -52,11 +52,13 @@ const adminLogin = async (req, res) => {
       });
     }
 
-    // Get super admin contact for this admin
-    const superAdmin = await User.findByPk(admin.createdBy).select('name email phone');
+    // Get super admin contact for this admin (Sequelize - use attributes)
+    const superAdmin = admin.createdBy ? await User.findByPk(admin.createdBy, {
+      attributes: ['id', 'name', 'email', 'phone']
+    }) : null;
 
     // Generate token
-    const token = generateToken(admin._id, 'admin');
+    const token = generateToken(admin.id, 'admin');
 
     // Update last login
     admin.lastLogin = new Date();
@@ -67,7 +69,7 @@ const adminLogin = async (req, res) => {
       message: 'Admin login successful',
       data: {
         admin: {
-          id: admin._id,
+          id: admin.id,
           name: admin.name,
           email: admin.email,
           phone: admin.phone,
@@ -144,14 +146,16 @@ const verifyAdmin = async (req, res) => {
       });
     }
 
-    // Get super admin contact
-    const superAdmin = await User.findByPk(admin.createdBy).select('name email phone');
+    // Get super admin contact (Sequelize - use attributes)
+    const superAdmin = admin.createdBy ? await User.findByPk(admin.createdBy, {
+      attributes: ['id', 'name', 'email', 'phone']
+    }) : null;
 
     res.json({
       success: true,
       data: {
         admin: {
-          id: admin._id,
+          id: admin.id,
           name: admin.name,
           email: admin.email,
           phone: admin.phone,
@@ -211,7 +215,7 @@ const changeAdminPassword = async (req, res) => {
       });
     }
 
-    const admin = await Admin.findByPk(req.user.id).select('+password');
+    const admin = await Admin.findByPk(req.user.id);
     
     if (!admin) {
       return res.status(404).json({
@@ -262,14 +266,16 @@ const getAdminProfile = async (req, res) => {
       });
     }
 
-    // Get super admin contact
-    const superAdmin = await User.findByPk(admin.createdBy).select('name email phone');
+    // Get super admin contact (Sequelize - use attributes)
+    const superAdmin = admin.createdBy ? await User.findByPk(admin.createdBy, {
+      attributes: ['id', 'name', 'email', 'phone']
+    }) : null;
 
     res.json({
       success: true,
       data: {
         admin: {
-          id: admin._id,
+          id: admin.id,
           name: admin.name,
           email: admin.email,
           phone: admin.phone,
@@ -323,7 +329,7 @@ const updateAdminProfile = async (req, res) => {
       message: 'Profile updated successfully',
       data: {
         admin: {
-          id: admin._id,
+          id: admin.id,
           name: admin.name,
           email: admin.email,
           phone: admin.phone,

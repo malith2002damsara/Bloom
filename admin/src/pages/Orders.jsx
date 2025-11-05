@@ -23,6 +23,19 @@ const Orders = () => {
     fetchOrders();
   }, []);
 
+  // Open specific order from highlight param
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const highlightId = params.get('highlight');
+    if (highlightId && orders.length > 0) {
+      const match = orders.find(o => o._id === highlightId);
+      if (match) {
+        setSelectedOrder(match);
+        setShowModal(true);
+      }
+    }
+  }, [orders]);
+
   const fetchOrders = async () => {
     try {
       setLoading(true);
@@ -142,7 +155,7 @@ const Orders = () => {
               <div className="bg-gray-50 p-4 rounded-lg">
                 <h3 className="font-semibold text-gray-900 mb-2">Order Information</h3>
                 <div className="space-y-2">
-                  <p><span className="font-medium">Order ID:</span> {order._id}</p>
+                  {/* Order ID intentionally hidden per requirements */}
                   <p><span className="font-medium">Date:</span> {formatDate(order.createdAt)}</p>
                   <p><span className="font-medium">Total:</span> {formatCurrency(order.total)}</p>
                   <p><span className="font-medium">Payment:</span> {order.paymentMethod}</p>

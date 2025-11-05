@@ -303,6 +303,15 @@ const createAdmin = async (req, res) => {
           message: 'That number already exists, please use another number.'
         });
       }
+      const SuperAdmin = require('../models/SuperAdmin');
+      const phoneExistsInSuperAdmin = await SuperAdmin.findOne({ where: { phone } });
+      if (phoneExistsInSuperAdmin) {
+        console.log('Phone number exists in SuperAdmin table');
+        return res.status(400).json({
+          success: false,
+          message: 'That number already exists, please use another number.'
+        });
+      }
     } else {
       phone = null;
     }

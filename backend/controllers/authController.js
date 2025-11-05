@@ -35,7 +35,7 @@ const register = async (req, res) => {
       });
     }
 
-    // Check if phone number is already used by another user or admin
+    // Check if phone number is already used by another user or admin/superadmin
     const phoneExists = await User.findOne({ where: { phone } });
     if (phoneExists) {
       return res.status(400).json({
@@ -47,6 +47,15 @@ const register = async (req, res) => {
     const Admin = require('../models/Admin');
     const adminPhoneExists = await Admin.findOne({ where: { phone } });
     if (adminPhoneExists) {
+      return res.status(400).json({
+        success: false,
+        message: 'That number already exists, please use another number.'
+      });
+    }
+
+    const SuperAdmin = require('../models/SuperAdmin');
+    const saPhoneExists = await SuperAdmin.findOne({ where: { phone } });
+    if (saPhoneExists) {
       return res.status(400).json({
         success: false,
         message: 'That number already exists, please use another number.'

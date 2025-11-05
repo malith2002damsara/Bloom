@@ -236,7 +236,7 @@ const ListAdmin = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredAdmins.map((admin) => (
-                  <tr key={admin._id} className="hover:bg-gray-50">
+                  <tr key={admin.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center">
@@ -277,7 +277,7 @@ const ListAdmin = () => {
                       <div className="flex items-center space-x-2">
                         {admin.isActive ? (
                           <button
-                            onClick={() => handleDeactivate(admin._id)}
+                            onClick={() => handleDeactivate(admin.id)}
                             className="text-orange-600 hover:text-orange-700 p-2 hover:bg-orange-50 rounded-lg transition-colors"
                             title="Deactivate"
                           >
@@ -285,7 +285,7 @@ const ListAdmin = () => {
                           </button>
                         ) : (
                           <button
-                            onClick={() => handleActivate(admin._id)}
+                            onClick={() => handleActivate(admin.id)}
                             className="text-green-600 hover:text-green-700 p-2 hover:bg-green-50 rounded-lg transition-colors"
                             title="Activate"
                           >
@@ -294,7 +294,7 @@ const ListAdmin = () => {
                         )}
                         
                         <button
-                          onClick={() => handleDelete(admin._id)}
+                          onClick={() => handleDelete(admin.id)}
                           className="text-red-600 hover:text-red-700 p-2 hover:bg-red-50 rounded-lg transition-colors"
                           title="Delete"
                         >

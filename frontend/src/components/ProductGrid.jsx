@@ -11,6 +11,9 @@ const ProductGrid = ({ isCollectionPage = false, maxProducts = null }) => {
   const [error, setError] = useState('');
   const [sellerCode, setSellerCode] = useState('');
   const [appliedCode, setAppliedCode] = useState('');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [sortBy, setSortBy] = useState('createdAt');
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -34,7 +37,13 @@ const ProductGrid = ({ isCollectionPage = false, maxProducts = null }) => {
       // Use home endpoint for home page (10 products from different admins)
       // Use regular products endpoint for collection page
       const response = isCollectionPage 
-        ? await apiService.getProducts({ adminCode: codeFilter })
+        ? await apiService.getProducts({ 
+            adminCode: codeFilter, 
+            category: activeCategory,
+            minPrice: minPrice || undefined,
+            maxPrice: maxPrice || undefined,
+            sortBy: sortBy === 'default' ? undefined : sortBy
+          })
         : await apiService.getHomeProducts();
       
       if (response.success) {
@@ -48,7 +57,7 @@ const ProductGrid = ({ isCollectionPage = false, maxProducts = null }) => {
     } finally {
       setLoading(false);
     }
-  }, [isCollectionPage]);
+  }, [isCollectionPage, activeCategory, minPrice, maxPrice, sortBy]);
 
   // Fetch products on component mount and when applied code changes
   useEffect(() => {
@@ -203,7 +212,7 @@ const ProductGrid = ({ isCollectionPage = false, maxProducts = null }) => {
           </div>
         )}
         
-        {/* Category Filters */}
+        {/* Filters */}
         <div className="flex flex-wrap justify-center gap-2 mb-8">
           {['all', 'fresh','artificial','mixed','bears'].map((category) => (
             <button
@@ -228,6 +237,46 @@ const ProductGrid = ({ isCollectionPage = false, maxProducts = null }) => {
             </button>
           ))}
         </div>
+
+        {isCollectionPage && (
+          <div className="max-w-3xl mx-auto mb-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <input
+              type="number"
+              min="0"
+              placeholder="Min Price"
+              value={minPrice}
+              onChange={(e) => setMinPrice(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+            />
+            <input
+              type="number"
+              min="0"
+              placeholder="Max Price"
+              value={maxPrice}
+              onChange={(e) => setMaxPrice(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+            />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="col-span-2 sm:col-span-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+            >
+              <option value="default">Sort By</option>
+              <option value="price-low">Price: Low to High</option>
+              <option value="price-high">Price: High to Low</option>
+              <option value="name-asc">Name: A to Z</option>
+              <option value="name-desc">Name: Z to A</option>
+              <option value="rating">Rating</option>
+              <option value="discount">Discount</option>
+            </select>
+            <button
+              onClick={() => fetchProducts(appliedCode)}
+              className="col-span-2 sm:col-span-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+            >
+              Apply Filters
+            </button>
+          </div>
+        )}
         
         {/* Product Count Display */}
         {displayProducts.length > 0 && (

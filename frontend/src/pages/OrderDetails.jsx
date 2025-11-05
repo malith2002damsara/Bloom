@@ -205,7 +205,7 @@ const OrderDetails = () => {
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <div>
                 <h1 className="text-3xl font-bold text-gray-800 mb-2">
-                  Order #{order.orderNumber || order._id.slice(-8)}
+                  Your Order
                 </h1>
                 <p className="text-gray-600 flex items-center">
                   <FiCalendar className="mr-2" />
@@ -296,7 +296,7 @@ const OrderDetails = () => {
               </div>
             </div>
 
-            {/* Customer Information */}
+            {/* Customer Information (PII minimized) */}
             {order.customerInfo && (
               <div className="bg-white rounded-xl shadow-lg p-6">
                 <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
@@ -305,29 +305,7 @@ const OrderDetails = () => {
                 </h2>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                    <FiUser className="text-blue-600 mt-1 flex-shrink-0" size={20} />
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">Full Name</p>
-                      <p className="font-semibold text-gray-800">{order.customerInfo.name}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                    <FiMail className="text-red-600 mt-1 flex-shrink-0" size={20} />
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">Email</p>
-                      <p className="font-semibold text-gray-800 break-all">{order.customerInfo.email}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                    <FiPhone className="text-green-600 mt-1 flex-shrink-0" size={20} />
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">Phone</p>
-                      <p className="font-semibold text-gray-800">{order.customerInfo.phone}</p>
-                    </div>
-                  </div>
+                  {/* Intentionally hiding name, email, and phone for privacy */}
 
                   <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
                     <FiMapPin className="text-purple-600 mt-1 flex-shrink-0" size={20} />
@@ -409,7 +387,7 @@ const OrderDetails = () => {
               </div>
             </div>
 
-            {/* Payment & Delivery */}
+            {/* Payment & Delivery (status minimized) */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <h2 className="text-xl font-bold text-gray-800 mb-4">Payment & Delivery</h2>
               
@@ -422,17 +400,6 @@ const OrderDetails = () => {
                   <p className="font-semibold text-gray-800 capitalize">
                     {order.paymentMethod === 'cod' ? 'Cash on Delivery' : order.paymentMethod || 'Not specified'}
                   </p>
-                </div>
-
-                <div className="p-3 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-600 mb-2">Payment Status</p>
-                  <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
-                    order.paymentStatus === 'paid' 
-                      ? 'bg-green-100 text-green-800 border border-green-200'
-                      : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
-                  }`}>
-                    {order.paymentStatus || 'pending'}
-                  </span>
                 </div>
 
                 {order.estimatedDelivery && (

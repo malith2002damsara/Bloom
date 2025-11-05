@@ -6,7 +6,9 @@ const {
   getOrderById,
   cancelOrder,
   getAllOrders,
-  updateOrderStatus
+  updateOrderStatus,
+  createPaymentIntent,
+  markOrderPaid
 } = require('../controllers/orderController');
 const { auth, adminOnly } = require('../middleware/auth');
 
@@ -74,6 +76,17 @@ router.get('/:id', auth, getOrderById);
 // @desc    Cancel order
 // @access  Private
 router.put('/:id/cancel', auth, cancelOrder);
+
+// Payments
+// @route   POST /api/orders/payment-intent
+// @desc    Create Stripe PaymentIntent (card payments)
+// @access  Private
+router.post('/payment-intent', auth, createPaymentIntent);
+
+// @route   POST /api/orders/:id/mark-paid
+// @desc    Mark order as paid after successful card payment
+// @access  Private
+router.post('/:id/mark-paid', auth, markOrderPaid);
 
 // Admin routes
 // @route   GET /api/orders/admin/all

@@ -193,10 +193,10 @@ const Dashboard = () => {
 
           {/* Promo Code & Commission Payment */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            {/* Promo Code Card */}
+            {/* Seller Code Card */}
             <div className="bg-gradient-to-br from-pink-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
-              <h3 className="text-lg font-semibold mb-2">Your Promo Code</h3>
-              <p className="text-sm text-pink-100 mb-4">Share this code with your customers for exclusive discounts</p>
+              <h3 className="text-lg font-semibold mb-2">Your Seller Code</h3>
+              <p className="text-sm text-pink-100 mb-4">Share this code so customers can view only your products</p>
               <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4 flex items-center justify-between">
                 <span className="text-2xl font-bold tracking-wider">{promoCode || 'N/A'}</span>
                 <button
