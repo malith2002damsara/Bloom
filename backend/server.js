@@ -1,7 +1,7 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const { sequelize, testConnection } = require('./config/database');
 
 // Load environment variables
 dotenv.config();
@@ -37,6 +37,7 @@ app.use('/api/products', require('./routes/productRoutes'));
 app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/superadmin', require('./routes/superadminRoutes'));
+app.use('/api/superadmin/auth', require('./routes/superAdminAuth'));
 app.use('/api/feedback', require('./routes/feedbackRoutes'));
 app.use('/api/commission', require('./routes/commissionRoutes'));
 
@@ -45,18 +46,31 @@ app.get('/', (req, res) => {
   res.json({ message: 'BloomGrad API is running!' });
 });
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI)
-.then(() => {
-  console.log('Connected to MongoDB');
-  
-  // Initialize cron jobs after successful DB connection
-  const { initializeCronJobs } = require('./utils/cronJobs');
-  initializeCronJobs();
-})
-.catch((error) => {
-  console.error('MongoDB connection error:', error);
-});
+// Connect to PostgreSQL (NeonDB) and sync models
+(async () => {
+  try {
+    const isConnected = await testConnection();
+    
+    if (isConnected) {
+      // Initialize all models and relationships
+      require('./models');
+      
+      // Sync database (creates tables if they don't exist)
+      await sequelize.sync({ alter: false }); // Set to true for development to auto-update tables
+      console.log('✅ Database tables synchronized');
+      
+      // Initialize cron jobs after successful DB connection
+      const { initializeCronJobs } = require('./utils/cronJobs');
+      initializeCronJobs();
+    } else {
+      console.error('❌ Failed to establish database connection');
+      process.exit(1);
+    }
+  } catch (error) {
+    console.error('❌ Database initialization error:', error);
+    process.exit(1);
+  }
+})();
 
 // Error handling middleware
 app.use((err, req, res, next) => {

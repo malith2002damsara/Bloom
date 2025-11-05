@@ -294,7 +294,7 @@ const Settings = () => {
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Database Version:</span>
-              <span className="font-medium">MongoDB 5.0</span>
+              
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Node.js Version:</span>

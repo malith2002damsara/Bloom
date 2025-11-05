@@ -1,102 +1,113 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/database');
 
-const platformReportSchema = new mongoose.Schema({
+const PlatformReport = sequelize.define('PlatformReport', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
   period: {
-    type: String, // Format: 'YYYY-MM' (e.g., '2024-01')
-    required: true,
-    unique: true,
-    index: true
+    type: DataTypes.STRING(10),
+    allowNull: false,
+    unique: true
   },
   startDate: {
-    type: Date,
-    required: true
+    type: DataTypes.DATE,
+    allowNull: false
   },
   endDate: {
-    type: Date,
-    required: true
+    type: DataTypes.DATE,
+    allowNull: false
   },
   reportType: {
-    type: String,
-    enum: ['monthly', 'custom'],
-    default: 'monthly'
+    type: DataTypes.ENUM('monthly', 'custom'),
+    defaultValue: 'monthly'
   },
   generatedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Admin', // Super admin who generated it
-    required: true
-  },
-  
-  // Platform-wide metrics
-  platformMetrics: {
-    totalOrders: { type: Number, default: 0 },
-    deliveredOrders: { type: Number, default: 0 },
-    cancelledOrders: { type: Number, default: 0 },
-    pendingOrders: { type: Number, default: 0 },
-    totalRevenue: { type: Number, default: 0 },
-    totalCommission: { type: Number, default: 0 },
-    activeAdmins: { type: Number, default: 0 },
-    newCustomers: { type: Number, default: 0 }
-  },
-  
-  // Admin-wise breakdown
-  adminBreakdown: [{
-    adminId: { 
-      type: mongoose.Schema.Types.ObjectId, 
-      ref: 'Admin' 
-    },
-    adminName: String,
-    shopName: String,
-    totalSales: { type: Number, default: 0 },
-    lifetimeSales: { type: Number, default: 0 },
-    commissionableSales: { type: Number, default: 0 },
-    commissionDue: { type: Number, default: 0 },
-    numberOfOrders: { type: Number, default: 0 },
-    paymentStatus: {
-      type: String,
-      enum: ['paid', 'unpaid', 'overdue', 'not_applicable'],
-      default: 'not_applicable'
-    },
-    invoiceId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'CommissionInvoice'
+    type: DataTypes.UUID,
+    allowNull: false,
+    references: {
+      model: 'users',
+      key: 'id'
     }
-  }],
-  
-  // Report metadata
+  },
+  totalOrders: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  deliveredOrders: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  cancelledOrders: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  pendingOrders: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  totalRevenue: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0
+  },
+  totalCommission: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0
+  },
+  activeAdmins: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  newCustomers: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  adminBreakdown: {
+    type: DataTypes.JSONB,
+    defaultValue: []
+  },
   status: {
-    type: String,
-    enum: ['generating', 'completed', 'failed'],
-    default: 'generating'
+    type: DataTypes.ENUM('generating', 'completed', 'failed'),
+    defaultValue: 'generating'
   },
   fileUrl: {
-    type: String // URL to PDF file if stored
+    type: DataTypes.STRING(500),
+    allowNull: true
   },
   notes: {
-    type: String
+    type: DataTypes.TEXT,
+    allowNull: true
   }
 }, {
-  timestamps: true
+  tableName: 'platform_reports',
+  timestamps: true,
+  indexes: [
+    { fields: ['period'] },
+    { fields: ['createdAt'] },
+    { fields: ['status'] }
+  ]
 });
 
-// Indexes
-platformReportSchema.index({ period: -1 });
-platformReportSchema.index({ createdAt: -1 });
-platformReportSchema.index({ status: 1 });
-
 // Method to calculate total commission collected
-platformReportSchema.methods.getTotalCommissionCollected = function() {
+PlatformReport.prototype.getTotalCommissionCollected = function() {
+  if (!this.adminBreakdown || !Array.isArray(this.adminBreakdown)) {
+    return 0;
+  }
   return this.adminBreakdown
     .filter(admin => admin.paymentStatus === 'paid')
-    .reduce((sum, admin) => sum + admin.commissionDue, 0);
+    .reduce((sum, admin) => sum + (parseFloat(admin.commissionDue) || 0), 0);
 };
 
 // Method to calculate pending commission
-platformReportSchema.methods.getTotalCommissionPending = function() {
+PlatformReport.prototype.getTotalCommissionPending = function() {
+  if (!this.adminBreakdown || !Array.isArray(this.adminBreakdown)) {
+    return 0;
+  }
   return this.adminBreakdown
     .filter(admin => ['unpaid', 'overdue'].includes(admin.paymentStatus))
-    .reduce((sum, admin) => sum + admin.commissionDue, 0);
+    .reduce((sum, admin) => sum + (parseFloat(admin.commissionDue) || 0), 0);
 };
-
-const PlatformReport = mongoose.model('PlatformReport', platformReportSchema);
 
 module.exports = PlatformReport;

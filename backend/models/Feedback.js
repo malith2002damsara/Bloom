@@ -1,161 +1,159 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/database');
 
-const feedbackSchema = new mongoose.Schema({
-  // User who submitted the feedback
+const Feedback = sequelize.define('Feedback', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+    type: DataTypes.UUID,
+    allowNull: false,
+    references: {
+      model: 'users',
+      key: 'id'
+    }
   },
-  
-  // Order reference
   orderId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Order',
-    required: true
+    type: DataTypes.UUID,
+    allowNull: false,
+    references: {
+      model: 'orders',
+      key: 'id'
+    }
   },
-  
-  // Product reference
   productId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Product',
-    required: true
+    type: DataTypes.UUID,
+    allowNull: false,
+    references: {
+      model: 'products',
+      key: 'id'
+    }
   },
-  
-  // Admin (seller) reference
   adminId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Admin',
-    required: true
+    type: DataTypes.UUID,
+    allowNull: false,
+    references: {
+      model: 'admins',
+      key: 'id'
+    }
   },
-  
-  // Rating (1-5 stars)
   rating: {
-    type: Number,
-    required: [true, 'Rating is required'],
-    min: [1, 'Rating must be at least 1'],
-    max: [5, 'Rating cannot exceed 5']
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    validate: {
+      min: { args: [1], msg: 'Rating must be at least 1' },
+      max: { args: [5], msg: 'Rating cannot exceed 5' }
+    }
   },
-  
-  // Comment/Review
   comment: {
-    type: String,
-    required: [true, 'Comment is required'],
-    trim: true,
-    maxlength: [500, 'Comment cannot exceed 500 characters']
+    type: DataTypes.TEXT,
+    allowNull: false,
+    validate: {
+      notEmpty: { msg: 'Comment is required' },
+      len: {
+        args: [1, 500],
+        msg: 'Comment cannot exceed 500 characters'
+      }
+    }
   },
-  
-  // Feedback status
   status: {
-    type: String,
-    enum: ['pending', 'approved', 'rejected'],
-    default: 'approved' // Auto-approve by default
+    type: DataTypes.ENUM('pending', 'approved', 'rejected'),
+    defaultValue: 'approved'
   },
-  
-  // Flag for inappropriate content
   isFlagged: {
-    type: Boolean,
-    default: false
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   },
-  
-  // Helpful votes (optional feature for later)
   helpfulCount: {
-    type: Number,
-    default: 0
+    type: DataTypes.INTEGER,
+    defaultValue: 0
   },
-  
-  // Metadata
   isVerifiedPurchase: {
-    type: Boolean,
-    default: true
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
   }
 }, {
-  timestamps: true
+  tableName: 'feedback',
+  timestamps: true,
+  indexes: [
+    { fields: ['productId', 'createdAt'] },
+    { fields: ['adminId'] },
+    { fields: ['orderId'] },
+    { fields: ['userId'] },
+    { fields: ['rating'] },
+    { fields: ['userId', 'productId', 'orderId'], unique: true }
+  ]
 });
 
-// Indexes for performance
-feedbackSchema.index({ productId: 1, createdAt: -1 });
-feedbackSchema.index({ adminId: 1 });
-feedbackSchema.index({ orderId: 1 });
-feedbackSchema.index({ userId: 1 });
-feedbackSchema.index({ rating: -1 }); // For sorting by rating
-
-// Ensure one feedback per user per product per order
-feedbackSchema.index({ userId: 1, productId: 1, orderId: 1 }, { unique: true });
-
-// Update product rating after feedback is saved
-feedbackSchema.post('save', async function() {
+// After create/update feedback, update product ratings
+Feedback.addHook('afterSave', async (feedback) => {
+  const Product = require('./Product');
+  const { fn, col } = require('sequelize');
+  
   try {
-    const Product = mongoose.model('Product');
-    const Feedback = mongoose.model('Feedback');
-    
-    // Calculate new average rating for this product
-    const stats = await Feedback.aggregate([
-      {
-        $match: {
-          productId: this.productId,
-          status: 'approved'
-        }
+    const stats = await Feedback.findOne({
+      where: {
+        productId: feedback.productId,
+        status: 'approved'
       },
-      {
-        $group: {
-          _id: '$productId',
-          averageRating: { $avg: '$rating' },
-          count: { $sum: 1 }
-        }
-      }
-    ]);
+      attributes: [
+        [fn('AVG', col('rating')), 'averageRating'],
+        [fn('COUNT', col('id')), 'count']
+      ],
+      raw: true
+    });
     
-    if (stats.length > 0) {
-      await Product.findByIdAndUpdate(this.productId, {
-        'ratings.average': Math.round(stats[0].averageRating * 10) / 10, // Round to 1 decimal
-        'ratings.count': stats[0].count
-      });
+    if (stats && stats.count > 0) {
+      await Product.update(
+        {
+          ratingsAverage: Math.round(parseFloat(stats.averageRating) * 10) / 10,
+          ratingsCount: parseInt(stats.count)
+        },
+        { where: { id: feedback.productId } }
+      );
     }
   } catch (error) {
     console.error('Error updating product rating:', error);
   }
 });
 
-// Update product rating after feedback is deleted
-feedbackSchema.post('findOneAndDelete', async function(doc) {
-  if (doc) {
-    try {
-      const Product = mongoose.model('Product');
-      const Feedback = mongoose.model('Feedback');
-      
-      const stats = await Feedback.aggregate([
+// After delete feedback, update product ratings
+Feedback.addHook('afterDestroy', async (feedback) => {
+  const Product = require('./Product');
+  const { fn, col } = require('sequelize');
+  
+  try {
+    const stats = await Feedback.findOne({
+      where: {
+        productId: feedback.productId,
+        status: 'approved'
+      },
+      attributes: [
+        [fn('AVG', col('rating')), 'averageRating'],
+        [fn('COUNT', col('id')), 'count']
+      ],
+      raw: true
+    });
+    
+    if (stats && stats.count > 0) {
+      await Product.update(
         {
-          $match: {
-            productId: doc.productId,
-            status: 'approved'
-          }
+          ratingsAverage: Math.round(parseFloat(stats.averageRating) * 10) / 10,
+          ratingsCount: parseInt(stats.count)
         },
-        {
-          $group: {
-            _id: '$productId',
-            averageRating: { $avg: '$rating' },
-            count: { $sum: 1 }
-          }
-        }
-      ]);
-      
-      if (stats.length > 0) {
-        await Product.findByIdAndUpdate(doc.productId, {
-          'ratings.average': Math.round(stats[0].averageRating * 10) / 10,
-          'ratings.count': stats[0].count
-        });
-      } else {
-        // No more ratings
-        await Product.findByIdAndUpdate(doc.productId, {
-          'ratings.average': 0,
-          'ratings.count': 0
-        });
-      }
-    } catch (error) {
-      console.error('Error updating product rating after deletion:', error);
+        { where: { id: feedback.productId } }
+      );
+    } else {
+      await Product.update(
+        { ratingsAverage: 0, ratingsCount: 0 },
+        { where: { id: feedback.productId } }
+      );
     }
+  } catch (error) {
+    console.error('Error updating product rating after deletion:', error);
   }
 });
 
-module.exports = mongoose.model('Feedback', feedbackSchema);
+module.exports = Feedback;

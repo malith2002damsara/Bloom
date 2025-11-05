@@ -1,221 +1,228 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
 const bcrypt = require('bcryptjs');
+const { sequelize } = require('../config/database');
 
-const adminSchema = new mongoose.Schema({
+const Admin = sequelize.define('Admin', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
   name: {
-    type: String,
-    required: [true, 'Name is required'],
-    trim: true,
-    minlength: [2, 'Name must be at least 2 characters long'],
-    maxlength: [50, 'Name cannot exceed 50 characters']
+    type: DataTypes.STRING(50),
+    allowNull: false,
+    validate: {
+      notEmpty: { msg: 'Name is required' },
+      len: {
+        args: [2, 50],
+        msg: 'Name must be between 2 and 50 characters'
+      }
+    }
   },
   email: {
-    type: String,
-    required: [true, 'Email is required'],
+    type: DataTypes.STRING(255),
+    allowNull: false,
     unique: true,
-    trim: true,
-    lowercase: true,
-    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
+    validate: {
+      notEmpty: { msg: 'Email is required' },
+      isEmail: { msg: 'Please enter a valid email' }
+    },
+    set(value) {
+      this.setDataValue('email', value.toLowerCase().trim());
+    }
   },
   password: {
-    type: String,
-    required: [true, 'Password is required'],
-    minlength: [6, 'Password must be at least 6 characters long'],
-    select: false
+    type: DataTypes.STRING(255),
+    allowNull: false,
+    validate: {
+      notEmpty: { msg: 'Password is required' },
+      len: {
+        args: [6, 255],
+        msg: 'Password must be at least 6 characters long'
+      }
+    }
   },
   phone: {
-    type: String,
-    required: [true, 'Phone number is required'],
-    unique: true,
-    trim: true,
-    minlength: [10, 'Phone number must be at least 10 characters'],
-    maxlength: [15, 'Phone number cannot exceed 15 characters']
-  },
-  // Unique Admin Code for customers to filter products
-  adminCode: {
-    type: String,
-    unique: true,
-    sparse: true, // Allow unique index with null/undefined values
-    trim: true,
-    minlength: [3, 'Admin code must be 3 digits'],
-    maxlength: [3, 'Admin code must be 3 digits'],
+    type: DataTypes.STRING(15),
+    allowNull: true,
     validate: {
-      validator: function(v) {
-        // Allow undefined/null (will be generated in pre-save), but if present must be 3 digits
-        if (!v) return true;
-        return /^\d{3}$/.test(v);
-      },
-      message: 'Admin code must be a 3-digit number'
+      len: {
+        args: [10, 15],
+        msg: 'Phone number must be between 10 and 15 characters'
+      }
+    }
+  },
+  adminCode: {
+    type: DataTypes.STRING(3),
+    unique: true,
+    allowNull: true,
+    validate: {
+      is: {
+        args: /^\d{3}$/,
+        msg: 'Admin code must be a 3-digit number'
+      }
     }
   },
   role: {
-    type: String,
-    enum: ['admin'],
-    default: 'admin'
+    type: DataTypes.STRING(20),
+    defaultValue: 'admin',
+    allowNull: false
   },
   isActive: {
-    type: Boolean,
-    default: true
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
   },
   accountStatus: {
-    type: String,
-    enum: ['active', 'deactivated', 'suspended'],
-    default: 'active',
-    index: true
+    type: DataTypes.ENUM('active', 'deactivated', 'suspended'),
+    defaultValue: 'active'
   },
-  // Shop Information
   shopName: {
-    type: String,
-    trim: true,
-    default: ''
+    type: DataTypes.STRING(255),
+    defaultValue: ''
   },
   shopDescription: {
-    type: String,
-    trim: true,
-    default: ''
+    type: DataTypes.TEXT,
+    defaultValue: ''
   },
   address: {
-    type: String,
-    trim: true,
-    default: ''
+    type: DataTypes.TEXT,
+    defaultValue: ''
   },
   contactInfo: {
-    type: String,
-    trim: true,
-    default: ''
+    type: DataTypes.STRING(255),
+    defaultValue: ''
   },
-  // Commission & Transaction Tracking
   lifetimeSales: {
-    type: Number,
-    default: 0,
-    index: true
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0
   },
-  earnings: {
-    total: {
-      type: Number,
-      default: 0
-    },
-    thisMonth: {
-      type: Number,
-      default: 0
-    },
-    lastMonthPaid: {
-      type: Number,
-      default: 0
-    }
+  earningsTotal: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0
   },
-  commission: {
-    threshold: {
-      type: Number,
-      default: 50000 // Rs. 50,000 threshold before commission applies
-    },
-    rate: {
-      type: Number,
-      default: 10 // 10% commission
-    },
-    totalDue: {
-      type: Number,
-      default: 0
-    },
-    lastPaidDate: {
-      type: Date,
-      default: null
-    },
-    nextDueDate: {
-      type: Date,
-      default: null
-    }
+  earningsThisMonth: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0
   },
-  // Deactivation tracking for overdue payments
+  earningsLastMonthPaid: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0
+  },
+  commissionThreshold: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 50000
+  },
+  commissionRate: {
+    type: DataTypes.DECIMAL(5, 2),
+    defaultValue: 10
+  },
+  commissionTotalDue: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0
+  },
+  commissionLastPaidDate: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  commissionNextDueDate: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
   deactivationReason: {
-    type: String,
-    default: ''
+    type: DataTypes.TEXT,
+    defaultValue: ''
   },
   deactivatedAt: {
-    type: Date,
-    default: null
+    type: DataTypes.DATE,
+    allowNull: true
   },
   createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+    type: DataTypes.UUID,
+    allowNull: true,
+    references: {
+      model: 'users',
+      key: 'id'
+    },
+    onDelete: 'SET NULL',
+    onUpdate: 'CASCADE'
   },
   lastLogin: {
-    type: Date,
-    default: null
+    type: DataTypes.DATE,
+    allowNull: true
   },
   passwordChangedAt: {
-    type: Date,
-    default: null
+    type: DataTypes.DATE,
+    allowNull: true
   }
 }, {
-  timestamps: true
-});
-
-// Combined pre-save hook: Generate admin code and hash password
-adminSchema.pre('save', async function(next) {
-  try {
-    // Generate admin code if it doesn't exist (for new admins or legacy admins)
-    if (!this.adminCode) {
-      // Generate a simple 3-digit numeric code (100-999)
-      let randomCode = Math.floor(100 + Math.random() * 900); // 3-digit: 100-999
-      this.adminCode = randomCode.toString();
-      
-      // Check if code already exists, regenerate if needed
-      let codeExists = true;
-      let attempts = 0;
-      const maxAttempts = 50; // Prevent infinite loop
-      
-      while (codeExists && attempts < maxAttempts) {
-        const existing = await this.constructor.findOne({ 
-          adminCode: this.adminCode,
-          _id: { $ne: this._id } // Exclude current document
-        });
-        if (!existing) {
-          codeExists = false;
-        } else {
-          randomCode = Math.floor(100 + Math.random() * 900);
-          this.adminCode = randomCode.toString();
+  tableName: 'admins',
+  timestamps: true,
+  indexes: [
+    { fields: ['email'] },
+    { fields: ['phone'] },
+    { fields: ['adminCode'] },
+    { fields: ['accountStatus'] },
+    { fields: ['lifetimeSales'] },
+    { fields: ['createdBy'] }
+  ],
+  hooks: {
+    beforeValidate: async (admin) => {
+      // Generate admin code if it doesn't exist
+      if (!admin.adminCode) {
+        let attempts = 0;
+        const maxAttempts = 50;
+        
+        while (attempts < maxAttempts) {
+          const randomCode = Math.floor(100 + Math.random() * 900).toString();
+          
+          try {
+            const existing = await Admin.findOne({
+              where: { adminCode: randomCode }
+            });
+            
+            if (!existing) {
+              admin.adminCode = randomCode;
+              break;
+            }
+          } catch (err) {
+            console.error('Error checking admin code uniqueness:', err);
+          }
+          
           attempts++;
         }
+        
+        if (attempts >= maxAttempts) {
+          throw new Error('Unable to generate unique admin code. Please try again.');
+        }
       }
-      
-      if (attempts >= maxAttempts) {
-        throw new Error('Unable to generate unique admin code. Please try again.');
+    },
+    beforeSave: async (admin) => {
+      // Hash password if it's modified
+      if (admin.changed('password')) {
+        try {
+          const salt = await bcrypt.genSalt(10);
+          admin.password = await bcrypt.hash(admin.password, salt);
+          
+          // Set passwordChangedAt if password is being changed (not on creation)
+          if (!admin.isNewRecord) {
+            admin.passwordChangedAt = new Date(Date.now() - 1000);
+          }
+        } catch (err) {
+          console.error('Error hashing password:', err);
+          throw new Error('Failed to process password');
+        }
       }
     }
-    
-    // Hash password if modified
-    if (this.isModified('password')) {
-      const salt = await bcrypt.genSalt(10);
-      this.password = await bcrypt.hash(this.password, salt);
-      
-      // Set passwordChangedAt if password is being changed (not on creation)
-      if (!this.isNew) {
-        this.passwordChangedAt = Date.now() - 1000; // Subtract 1 second to ensure token is created after password change
-      }
-    }
-    
-    next();
-  } catch (error) {
-    next(error);
   }
 });
 
-// Compare password method
-adminSchema.methods.comparePassword = async function(candidatePassword) {
+// Instance method to compare passwords
+Admin.prototype.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
-// Remove password from JSON output
-adminSchema.methods.toJSON = function() {
-  const adminObject = this.toObject();
-  delete adminObject.password;
-  return adminObject;
-};
-
-// Check if password was changed after JWT was issued
-adminSchema.methods.changedPasswordAfter = function(JWTTimestamp) {
+// Instance method to check if password was changed after JWT was issued
+Admin.prototype.changedPasswordAfter = function(JWTTimestamp) {
   if (this.passwordChangedAt) {
     const changedTimestamp = parseInt(this.passwordChangedAt.getTime() / 1000, 10);
     return JWTTimestamp < changedTimestamp;
@@ -223,4 +230,11 @@ adminSchema.methods.changedPasswordAfter = function(JWTTimestamp) {
   return false;
 };
 
-module.exports = mongoose.model('Admin', adminSchema);
+// Remove password from JSON output
+Admin.prototype.toJSON = function() {
+  const values = { ...this.get() };
+  delete values.password;
+  return values;
+};
+
+module.exports = Admin;

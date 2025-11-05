@@ -24,10 +24,10 @@ const register = async (req, res) => {
       });
     }
 
-    const { name, email, phone, password } = req.body;
+    const { name, email, phone, password, role } = req.body;
 
     // Check if user already exists with email
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -36,7 +36,7 @@ const register = async (req, res) => {
     }
 
     // Check if phone number is already used by another user or admin
-    const phoneExists = await User.findOne({ phone });
+    const phoneExists = await User.findOne({ where: { phone } });
     if (phoneExists) {
       return res.status(400).json({
         success: false,
@@ -45,7 +45,7 @@ const register = async (req, res) => {
     }
 
     const Admin = require('../models/Admin');
-    const adminPhoneExists = await Admin.findOne({ phone });
+    const adminPhoneExists = await Admin.findOne({ where: { phone } });
     if (adminPhoneExists) {
       return res.status(400).json({
         success: false,
@@ -54,28 +54,24 @@ const register = async (req, res) => {
     }
 
     // Create new user
-    const user = new User({
+    const user = await User.create({
       name,
       email,
       phone,
-      password
+      password,
+      role: role || 'user',
+      lastLogin: new Date()
     });
 
-    await user.save();
-
     // Generate token
-    const token = generateToken(user._id);
-
-    // Update last login
-    user.lastLogin = new Date();
-    await user.save();
+    const token = generateToken(user.id);
 
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
       data: {
         user: {
-          id: user._id,
+          id: user.id,
           name: user.name,
           email: user.email,
           phone: user.phone,
@@ -112,8 +108,12 @@ const login = async (req, res) => {
 
     const { email, password } = req.body;
 
-    // Find user by email
-    const user = await User.findOne({ email }).select('+password');
+    // Find user by email (include password field)
+    const user = await User.findOne({ 
+      where: { email },
+      attributes: { include: ['password'] }
+    });
+    
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -138,8 +138,12 @@ const login = async (req, res) => {
       });
     }
 
-    // Generate token
-    const token = generateToken(user._id);
+    // Generate token with role
+    const token = jwt.sign(
+      { userId: user.id, role: user.role }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '30d' }
+    );
 
     // Update last login
     user.lastLogin = new Date();
@@ -150,7 +154,7 @@ const login = async (req, res) => {
       message: 'Login successful',
       data: {
         user: {
-          id: user._id,
+          id: user.id,
           name: user.name,
           email: user.email,
           phone: user.phone,
@@ -176,7 +180,7 @@ const login = async (req, res) => {
 // @access  Private
 const getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await User.findByPk(req.user.id);
     
     if (!user) {
       return res.status(404).json({
@@ -190,12 +194,16 @@ const getProfile = async (req, res) => {
       message: 'Profile retrieved successfully',
       data: {
         user: {
-          id: user._id,
+          id: user.id,
           name: user.name,
           email: user.email,
           phone: user.phone,
           role: user.role,
-          address: user.address,
+          street: user.street,
+          city: user.city,
+          state: user.state,
+          zipCode: user.zipCode,
+          country: user.country,
           lastLogin: user.lastLogin,
           createdAt: user.createdAt
         }
@@ -217,9 +225,9 @@ const getProfile = async (req, res) => {
 // @access  Private
 const updateProfile = async (req, res) => {
   try {
-    const { name, email, phone, address } = req.body;
+    const { name, email, phone, street, city, state, zipCode, country } = req.body;
     
-    const user = await User.findById(req.user.id);
+    const user = await User.findByPk(req.user.id);
     
     if (!user) {
       return res.status(404).json({
@@ -230,7 +238,7 @@ const updateProfile = async (req, res) => {
 
     // Check if email is being changed and if it's already taken
     if (email && email !== user.email) {
-      const existingUser = await User.findOne({ email });
+      const existingUser = await User.findOne({ where: { email } });
       if (existingUser) {
         return res.status(400).json({
           success: false,
@@ -243,7 +251,11 @@ const updateProfile = async (req, res) => {
     if (name) user.name = name;
     if (email) user.email = email;
     if (phone) user.phone = phone;
-    if (address) user.address = { ...user.address, ...address };
+    if (street !== undefined) user.street = street;
+    if (city !== undefined) user.city = city;
+    if (state !== undefined) user.state = state;
+    if (zipCode !== undefined) user.zipCode = zipCode;
+    if (country !== undefined) user.country = country;
 
     await user.save();
 
@@ -251,12 +263,16 @@ const updateProfile = async (req, res) => {
       success: true,
       message: 'Profile updated successfully',
       user: {
-        id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
         phone: user.phone,
         role: user.role,
-        address: user.address
+        street: user.street,
+        city: user.city,
+        state: user.state,
+        zipCode: user.zipCode,
+        country: user.country
       }
     });
 
@@ -277,7 +293,9 @@ const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     
-    const user = await User.findById(req.user.id).select('+password');
+    const user = await User.findByPk(req.user.id, {
+      attributes: { include: ['password'] }
+    });
     
     if (!user) {
       return res.status(404).json({

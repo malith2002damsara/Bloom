@@ -76,7 +76,7 @@ const AddAdmin = () => {
         name: formData.name,
         email: formData.email,
         password: formData.password,
-        phone: formData.phone
+        phone: formData.phone || undefined
       });
 
       if (response.success) {

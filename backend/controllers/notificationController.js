@@ -6,7 +6,7 @@ const Product = require('../models/Product');
 // @access  Private/Admin
 const getNotifications = async (req, res) => {
   try {
-    const adminId = req.user._id;
+    const adminId = req.user.id;
     const limit = parseInt(req.query.limit) || 20;
 
     const notifications = await Notification.find({ adminId })
@@ -14,7 +14,7 @@ const getNotifications = async (req, res) => {
       .limit(limit)
       .lean();
 
-    const unreadCount = await Notification.countDocuments({ 
+    const unreadCount = await Notification.count({ 
       adminId, 
       read: false 
     });
@@ -42,7 +42,7 @@ const getNotifications = async (req, res) => {
 // @access  Private/Admin
 const markNotificationRead = async (req, res) => {
   try {
-    const adminId = req.user._id;
+    const adminId = req.user.id;
     const notificationId = req.params.id;
 
     const notification = await Notification.findOneAndUpdate(
@@ -79,7 +79,7 @@ const markNotificationRead = async (req, res) => {
 // @access  Private/Admin
 const markAllNotificationsRead = async (req, res) => {
   try {
-    const adminId = req.user._id;
+    const adminId = req.user.id;
 
     const result = await Notification.updateMany(
       { adminId, read: false },
@@ -109,7 +109,7 @@ const markAllNotificationsRead = async (req, res) => {
 // @access  Private/Admin
 const deleteNotification = async (req, res) => {
   try {
-    const adminId = req.user._id;
+    const adminId = req.user.id;
     const notificationId = req.params.id;
 
     const notification = await Notification.findOneAndDelete({

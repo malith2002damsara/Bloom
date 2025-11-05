@@ -1,5 +1,6 @@
 const Product = require('../models/Product');
 const Admin = require('../models/Admin');
+const { Op } = require('sequelize');
 
 // @desc    Get all products
 // @route   GET /api/products
@@ -21,23 +22,26 @@ const getProducts = async (req, res) => {
     console.log('=== GET PRODUCTS REQUEST ===');
     console.log('Query params:', { category, search, sortBy, page, limit, adminId, adminCode, minPrice, maxPrice });
     
-    // Build query object
-    let query = {};
+    // Build where clause for Sequelize
+    const where = {};
 
     // IMPORTANT: Only show products from ACTIVE admins (exclude deactivated admins)
     // Get all active admin IDs
-    const activeAdmins = await Admin.find({ isActive: true }).select('_id adminCode');
-    const activeAdminIds = activeAdmins.map(admin => admin._id);
+    const activeAdmins = await Admin.findAll({ 
+      where: { isActive: true },
+      attributes: ['id', 'adminCode']
+    });
+    const activeAdminIds = activeAdmins.map(admin => admin.id);
     
     console.log(`Found ${activeAdmins.length} active admins`);
     
     // Filter products to only show those from active admins
-    query.adminId = { $in: activeAdminIds };
+    where.adminId = { [Op.in]: activeAdminIds };
 
     // Filter by specific admin ID (for admin users to see only their products)
     if (adminId) {
       // Check if this specific admin is active
-      const isAdminActive = activeAdminIds.some(id => id.toString() === adminId);
+      const isAdminActive = activeAdminIds.some(id => id === adminId);
       if (!isAdminActive) {
         console.log(`Admin ${adminId} is not active - returning no products`);
         return res.json({
@@ -54,15 +58,15 @@ const getProducts = async (req, res) => {
           }
         });
       }
-      query.adminId = adminId;
+      where.adminId = adminId;
     }
     
     // Filter by Admin Code (for customers to see only specific seller's products)
     if (adminCode) {
       const admin = activeAdmins.find(a => a.adminCode === adminCode.toUpperCase());
       if (admin) {
-        query.adminId = admin._id;
-        console.log(`Filtering by admin code: ${adminCode} -> Admin ID: ${admin._id}`);
+        where.adminId = admin.id;
+        console.log(`Filtering by admin code: ${adminCode} -> Admin ID: ${admin.id}`);
       } else {
         console.log(`Admin code ${adminCode} not found - returning no products`);
         return res.json({
@@ -83,84 +87,79 @@ const getProducts = async (req, res) => {
 
     // Filter by category
     if (category && category !== 'all') {
-      query.category = category;
+      where.category = category;
     }
 
     // Price range filter
     if (minPrice || maxPrice) {
-      query.discountedPrice = {};
-      if (minPrice) query.discountedPrice.$gte = parseFloat(minPrice);
-      if (maxPrice) query.discountedPrice.$lte = parseFloat(maxPrice);
+      where.discountedPrice = {};
+      if (minPrice) where.discountedPrice[Op.gte] = parseFloat(minPrice);
+      if (maxPrice) where.discountedPrice[Op.lte] = parseFloat(maxPrice);
     }
 
     // Search functionality
     if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-        { 'seller.name': { $regex: search, $options: 'i' } }
+      where[Op.or] = [
+        { name: { [Op.iLike]: `%${search}%` } },
+        { description: { [Op.iLike]: `%${search}%` } }
       ];
     }
 
-    // Build sort object
-    let sort = {};
+    // Build sort array for Sequelize
+    let order = [['createdAt', 'DESC']]; // Default: newest first
     if (sortBy) {
       switch (sortBy) {
         case 'price-low':
-          sort.discountedPrice = 1;
+          order = [['discountedPrice', 'ASC']];
           break;
         case 'price-high':
-          sort.discountedPrice = -1;
+          order = [['discountedPrice', 'DESC']];
           break;
         case 'name-asc':
-          sort.name = 1;
+          order = [['name', 'ASC']];
           break;
         case 'name-desc':
-          sort.name = -1;
+          order = [['name', 'DESC']];
           break;
         case 'rating':
-          sort['ratings.average'] = -1;
+          order = [['ratings', 'DESC']];
           break;
         case 'discount':
-          sort.discount = -1;
+          order = [['discount', 'DESC']];
           break;
         default:
-          sort.createdAt = -1; // Default: newest first
+          order = [['createdAt', 'DESC']];
           break;
       }
-    } else {
-      sort.createdAt = -1; // Default: newest first
     }
 
     // Calculate pagination
     const pageNumber = parseInt(page);
     const limitNumber = parseInt(limit);
-    const skip = (pageNumber - 1) * limitNumber;
+    const offset = (pageNumber - 1) * limitNumber;
 
-    console.log('Final query:', JSON.stringify(query));
+    console.log('Final where:', JSON.stringify(where));
 
     // Execute query with pagination
-    const [products, totalCount] = await Promise.all([
-      Product.find(query)
-        .sort(sort)
-        .skip(skip)
-        .limit(limitNumber)
-        .lean(),
-      Product.countDocuments(query)
-    ]);
+    const { count, rows } = await Product.findAndCountAll({
+      where,
+      order,
+      offset,
+      limit: limitNumber
+    });
 
-    console.log(`Returned ${products.length} products from active admins (total: ${totalCount})`);
+    console.log(`Returned ${rows.length} products from active admins (total: ${count})`);
 
     res.json({
       success: true,
       message: 'Products retrieved successfully',
       data: {
-        products,
+        products: rows,
         pagination: {
           page: pageNumber,
           limit: limitNumber,
-          total: totalCount,
-          pages: Math.ceil(totalCount / limitNumber)
+          total: count,
+          pages: Math.ceil(count / limitNumber)
         }
       }
     });
@@ -193,7 +192,7 @@ const getProductById = async (req, res) => {
       });
     }
 
-    const product = await Product.findById(productId);
+    const product = await Product.findByPk(productId);
 
     if (!product) {
       return res.status(404).json({
@@ -203,7 +202,7 @@ const getProductById = async (req, res) => {
     }
 
     // IMPORTANT: Check if the product's admin is active
-    const admin = await Admin.findById(product.adminId);
+    const admin = await Admin.findByPk(product.adminId);
     
     if (!admin || !admin.isActive) {
       console.log(`Product ${productId} belongs to inactive admin - not accessible`);
@@ -241,38 +240,37 @@ const getCategories = async (req, res) => {
     console.log('=== GET CATEGORIES ===');
     
     // IMPORTANT: Only count products from ACTIVE admins
-    const activeAdmins = await Admin.find({ isActive: true }).select('_id');
-    const activeAdminIds = activeAdmins.map(admin => admin._id);
+    const activeAdmins = await Admin.findAll({ 
+      where: { isActive: true },
+      attributes: ['id']
+    });
+    const activeAdminIds = activeAdmins.map(admin => admin.id);
     
     console.log(`Counting products from ${activeAdmins.length} active admins`);
 
-    // Get category counts using aggregation (only from active admins)
-    const categoryCounts = await Product.aggregate([
-      {
-        $match: {
-          adminId: { $in: activeAdminIds }
-        }
-      },
-      {
-        $group: {
-          _id: '$category',
-          count: { $sum: 1 }
-        }
-      }
-    ]);
+    // Get category counts - Sequelize syntax
+    const categories = await Product.findAll({
+      where: { adminId: { [Op.in]: activeAdminIds } },
+      attributes: [
+        'category',
+        [require('sequelize').fn('COUNT', require('sequelize').col('id')), 'count']
+      ],
+      group: ['category'],
+      raw: true
+    });
 
     // Get total count (only from active admins)
-    const totalCount = await Product.countDocuments({
-      adminId: { $in: activeAdminIds }
+    const totalCount = await Product.count({
+      where: { adminId: { [Op.in]: activeAdminIds } }
     });
 
     // Build categories array
-    const categoryMap = categoryCounts.reduce((acc, item) => {
-      acc[item._id] = item.count;
-      return acc;
-    }, {});
+    const categoryMap = {};
+    categories.forEach(cat => {
+      categoryMap[cat.category] = parseInt(cat.count || 0);
+    });
 
-    const categories = [
+    const categoryList = [
       { id: 'all', name: 'All Products', count: totalCount },
       { id: 'fresh', name: 'Fresh Flowers', count: categoryMap.fresh || 0 },
       { id: 'artificial', name: 'Artificial Flowers', count: categoryMap.artificial || 0 },
@@ -280,13 +278,13 @@ const getCategories = async (req, res) => {
       { id: 'mixed', name: 'Mixed Arrangements', count: categoryMap.mixed || 0 }
     ];
 
-    console.log('Category counts:', categories);
+    console.log('Category counts:', categoryList);
 
     res.json({
       success: true,
       message: 'Categories retrieved successfully',
       data: {
-        categories
+        categories: categoryList
       }
     });
 
@@ -541,13 +539,13 @@ const createProduct = async (req, res) => {
     }
 
     // Get admin ID from request (set by auth middleware)
-    const adminId = req.user._id;
+    const adminId = req.user.id;
 
-    // Create new product
-    const productData = {
+    // Create new product using Sequelize
+    const product = await Product.create({
       name: name.trim(),
       description: description ? description.trim() : '',
-      price: basePrice, // Base price for display/sorting purposes
+      price: basePrice,
       category,
       occasion: occasion || '',
       images: imagePaths,
@@ -561,60 +559,45 @@ const createProduct = async (req, res) => {
         name: parsedSeller.name.trim(),
         contact: parsedSeller.contact.trim()
       },
-      adminId: adminId, // Link product to admin
+      adminId: adminId,
       inStock: true,
-      stock: 10
-    };
-
-    // Add category-specific data
-    if (category === 'bears') {
-      // Process bear details with proper price conversion and oldPrice
-      const processedBearSizes = parsedBearDetails.sizes.map(size => ({
-        ...size,
-        price: parseFloat(size.price) || 0,
-        oldPrice: parseFloat(size.oldPrice) || 0,
-        dimensions: {
-          height: size.dimensions?.height ? parseFloat(size.dimensions.height) : 0,
-          width: size.dimensions?.width ? parseFloat(size.dimensions.width) : 0,
-          depth: size.dimensions?.depth ? parseFloat(size.dimensions.depth) : 0
+      stock: 10,
+      ...(category === 'bears' ? {
+        bearDetails: {
+          sizes: parsedBearDetails.sizes.map(size => ({
+            ...size,
+            price: parseFloat(size.price) || 0,
+            oldPrice: parseFloat(size.oldPrice) || 0,
+            dimensions: {
+              height: size.dimensions?.height ? parseFloat(size.dimensions.height) : 0,
+              width: size.dimensions?.width ? parseFloat(size.dimensions.width) : 0,
+              depth: size.dimensions?.depth ? parseFloat(size.dimensions.depth) : 0
+            }
+          })),
+          colors: parsedBearDetails.colors || []
         }
-      }));
-
-      productData.bearDetails = {
-        sizes: processedBearSizes,
-        colors: parsedBearDetails.colors || []
-      };
-    } else {
-      // Process flower bouquet sizes with proper price conversion and oldPrice
-      const processedSizes = parsedSizes.map(size => ({
-        ...size,
-        price: parseFloat(size.price) || 0,
-        oldPrice: parseFloat(size.oldPrice) || 0,
-        dimensions: {
-          height: size.dimensions?.height ? parseFloat(size.dimensions.height) : 0,
-          width: size.dimensions?.width ? parseFloat(size.dimensions.width) : 0,
-          depth: size.dimensions?.depth ? parseFloat(size.dimensions.depth) : 0
-        }
-      }));
-
-      productData.sizes = processedSizes;
-      productData.freshFlowerSelections = parsedFreshFlowerSelections || [];
-      productData.artificialFlowerSelections = parsedArtificialFlowerSelections || [];
-      
-      // Legacy support
-      if (parsedFlowerSelections.length > 0) {
-        productData.flowerSelections = parsedFlowerSelections;
-      }
-    }
-
-    const product = new Product(productData);
-    const savedProduct = await product.save();
+      } : {
+        sizes: parsedSizes.map(size => ({
+          ...size,
+          price: parseFloat(size.price) || 0,
+          oldPrice: parseFloat(size.oldPrice) || 0,
+          dimensions: {
+            height: size.dimensions?.height ? parseFloat(size.dimensions.height) : 0,
+            width: size.dimensions?.width ? parseFloat(size.dimensions.width) : 0,
+            depth: size.dimensions?.depth ? parseFloat(size.dimensions.depth) : 0
+          }
+        })),
+        freshFlowerSelections: parsedFreshFlowerSelections || [],
+        artificialFlowerSelections: parsedArtificialFlowerSelections || [],
+        flowerSelections: parsedFlowerSelections.length > 0 ? parsedFlowerSelections : []
+      })
+    });
 
     res.status(201).json({
       success: true,
       message: `${category === 'bears' ? 'Bear product' : 'Flower bouquet'} created successfully`,
       data: {
-        product: savedProduct
+        product
       }
     });
 
@@ -637,8 +620,8 @@ const createProduct = async (req, res) => {
       });
     }
     
-    if (error.name === 'ValidationError') {
-      const errors = Object.values(error.errors).map(err => err.message);
+    if (error.name === 'SequelizeValidationError') {
+      const errors = error.errors.map(err => err.message);
       return res.status(400).json({
         success: false,
         message: 'Validation error',
@@ -677,7 +660,7 @@ const updateProduct = async (req, res) => {
     } = req.body;
 
     // Check if product exists and belongs to this admin
-    const existingProduct = await Product.findById(productId);
+    const existingProduct = await Product.findByPk(productId);
     if (!existingProduct) {
       return res.status(404).json({
         success: false,
@@ -686,7 +669,7 @@ const updateProduct = async (req, res) => {
     }
 
     // Verify product belongs to this admin (unless superadmin)
-    if (req.user.role !== 'superadmin' && existingProduct.adminId.toString() !== req.user._id.toString()) {
+    if (req.user.role !== 'superadmin' && existingProduct.adminId !== req.user.id) {
       return res.status(403).json({
         success: false,
         message: 'You do not have permission to update this product'
@@ -894,23 +877,32 @@ const updateProduct = async (req, res) => {
       }
     }
 
-    const product = await Product.findByIdAndUpdate(
-      productId,
+    const product = await Product.update(
       updateData,
-      { new: true, runValidators: true }
+      {
+        where: { id: productId },
+        returning: true
+      }
     );
+
+    if (product[0] === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
 
     res.json({
       success: true,
-      message: `${product.category === 'bears' ? 'Bear product' : 'Flower bouquet'} updated successfully`,
-      data: { product }
+      message: `${product[1][0].category === 'bears' ? 'Bear product' : 'Flower bouquet'} updated successfully`,
+      data: { product: product[1][0] }
     });
 
   } catch (error) {
     console.error('Update product error:', error);
     
-    if (error.name === 'ValidationError') {
-      const errors = Object.values(error.errors).map(err => err.message);
+    if (error.name === 'SequelizeValidationError') {
+      const errors = error.errors.map(err => err.message);
       return res.status(400).json({
         success: false,
         message: 'Validation error',
@@ -931,7 +923,7 @@ const updateProduct = async (req, res) => {
 // @access  Private/Admin
 const deleteProduct = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findByPk(req.params.id);
 
     if (!product) {
       return res.status(404).json({
@@ -941,14 +933,14 @@ const deleteProduct = async (req, res) => {
     }
 
     // Verify product belongs to this admin (unless superadmin)
-    if (req.user.role !== 'superadmin' && product.adminId.toString() !== req.user._id.toString()) {
+    if (req.user.role !== 'superadmin' && product.adminId !== req.user.id) {
       return res.status(403).json({
         success: false,
         message: 'You do not have permission to delete this product'
       });
     }
 
-    await Product.findByIdAndDelete(req.params.id);
+    await product.destroy();
 
     res.json({
       success: true,
@@ -973,39 +965,27 @@ const getHomePageProducts = async (req, res) => {
     console.log('=== GET HOME PAGE PRODUCTS ===');
     
     // Get all active admins
-    const activeAdmins = await Admin.find({ isActive: true }).select('_id').lean();
-    const activeAdminIds = activeAdmins.map(admin => admin._id);
+    const activeAdmins = await Admin.findAll({
+      where: { isActive: true },
+      attributes: ['id']
+    });
+    const activeAdminIds = activeAdmins.map(admin => admin.id);
     
     console.log(`Found ${activeAdmins.length} active admins`);
 
     // Get 10 newest products, ensuring they are from different admins
-    const products = await Product.aggregate([
-      {
-        $match: {
-          adminId: { $in: activeAdminIds },
-          status: 'active'
-        }
-      },
-      {
-        $sort: { createdAt: -1 }
-      },
-      // Group by adminId and get the newest product from each admin
-      {
-        $group: {
-          _id: '$adminId',
-          product: { $first: '$$ROOT' }
-        }
-      },
-      {
-        $replaceRoot: { newRoot: '$product' }
-      },
-      {
-        $sort: { createdAt: -1 }
-      },
-      {
-        $limit: 10
-      }
-    ]);
+    const { sequelize } = require('../config/database');
+    const products = await sequelize.query(`
+      SELECT DISTINCT ON ("adminId") *
+      FROM products
+      WHERE "adminId" = ANY($1)
+      AND status = 'active'
+      ORDER BY "adminId", "createdAt" DESC
+      LIMIT 10
+    `, {
+      replacements: [activeAdminIds],
+      type: sequelize.QueryTypes.SELECT
+    });
 
     console.log(`✅ Retrieved ${products.length} products from different admins for home page`);
 

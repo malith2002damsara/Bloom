@@ -53,7 +53,7 @@ const adminLogin = async (req, res) => {
     }
 
     // Get super admin contact for this admin
-    const superAdmin = await User.findById(admin.createdBy).select('name email phone');
+    const superAdmin = await User.findByPk(admin.createdBy).select('name email phone');
 
     // Generate token
     const token = generateToken(admin._id, 'admin');
@@ -118,7 +118,7 @@ const verifyAdmin = async (req, res) => {
     }
 
     // Find admin
-    const admin = await Admin.findById(decoded.userId);
+    const admin = await Admin.findByPk(decoded.userId);
 
     if (!admin) {
       return res.status(404).json({
@@ -145,7 +145,7 @@ const verifyAdmin = async (req, res) => {
     }
 
     // Get super admin contact
-    const superAdmin = await User.findById(admin.createdBy).select('name email phone');
+    const superAdmin = await User.findByPk(admin.createdBy).select('name email phone');
 
     res.json({
       success: true,
@@ -211,7 +211,7 @@ const changeAdminPassword = async (req, res) => {
       });
     }
 
-    const admin = await Admin.findById(req.user.id).select('+password');
+    const admin = await Admin.findByPk(req.user.id).select('+password');
     
     if (!admin) {
       return res.status(404).json({
@@ -253,7 +253,7 @@ const changeAdminPassword = async (req, res) => {
 // @access  Private
 const getAdminProfile = async (req, res) => {
   try {
-    const admin = await Admin.findById(req.user.id);
+    const admin = await Admin.findByPk(req.user.id);
     
     if (!admin) {
       return res.status(404).json({
@@ -263,7 +263,7 @@ const getAdminProfile = async (req, res) => {
     }
 
     // Get super admin contact
-    const superAdmin = await User.findById(admin.createdBy).select('name email phone');
+    const superAdmin = await User.findByPk(admin.createdBy).select('name email phone');
 
     res.json({
       success: true,
@@ -303,7 +303,7 @@ const updateAdminProfile = async (req, res) => {
   try {
     const { name, phone } = req.body;
     
-    const admin = await Admin.findById(req.user.id);
+    const admin = await Admin.findByPk(req.user.id);
     
     if (!admin) {
       return res.status(404).json({

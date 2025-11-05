@@ -1,191 +1,173 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/database');
 
-const transactionSchema = new mongoose.Schema({
-  // Transaction Type
+const Transaction = sequelize.define('Transaction', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
   type: {
-    type: String,
-    enum: ['commission', 'order', 'refund', 'adjustment'],
-    required: true,
-    default: 'commission'
+    type: DataTypes.ENUM('commission', 'order', 'refund', 'adjustment'),
+    allowNull: false,
+    defaultValue: 'commission'
   },
-
-  // Reference to Admin (for commission transactions)
   adminId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Admin',
-    required: function() {
-      return this.type === 'commission';
+    type: DataTypes.UUID,
+    allowNull: true,
+    references: {
+      model: 'admins',
+      key: 'id'
     }
   },
-
-  // Reference to Order (if applicable)
   orderId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Order'
+    type: DataTypes.UUID,
+    allowNull: true,
+    references: {
+      model: 'orders',
+      key: 'id'
+    }
   },
-
-  // Financial Details
   adminRevenue: {
-    type: Number,
-    required: function() {
-      return this.type === 'commission';
-    },
-    default: 0
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0
   },
-
   commissionRate: {
-    type: Number,
-    default: 10, // 10% commission
-    min: 0,
-    max: 100
+    type: DataTypes.DECIMAL(5, 2),
+    defaultValue: 10,
+    validate: {
+      min: { args: [0], msg: 'Commission rate cannot be negative' },
+      max: { args: [100], msg: 'Commission rate cannot exceed 100%' }
+    }
   },
-
   commissionAmount: {
-    type: Number,
-    required: true,
-    default: 0
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    defaultValue: 0
   },
-
   totalAmount: {
-    type: Number,
-    required: true
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false
   },
-
-  // Period Information
-  period: {
-    month: {
-      type: Number,
-      required: true,
-      min: 1,
-      max: 12
-    },
-    year: {
-      type: Number,
-      required: true
+  periodMonth: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    validate: {
+      min: { args: [1], msg: 'Month must be between 1 and 12' },
+      max: { args: [12], msg: 'Month must be between 1 and 12' }
     }
   },
-
-  // Status
+  periodYear: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
   status: {
-    type: String,
-    enum: ['pending', 'processing', 'completed', 'failed', 'cancelled'],
-    default: 'pending'
+    type: DataTypes.ENUM('pending', 'processing', 'completed', 'failed', 'cancelled'),
+    defaultValue: 'pending'
   },
-
   paymentStatus: {
-    type: String,
-    enum: ['unpaid', 'paid', 'partially_paid', 'overdue'],
-    default: 'unpaid'
+    type: DataTypes.ENUM('unpaid', 'paid', 'partially_paid', 'overdue'),
+    defaultValue: 'unpaid'
   },
-
-  // Payment Details
   paymentMethod: {
-    type: String,
-    enum: ['bank_transfer', 'cash', 'mastercard', 'visa', 'check', 'digital_wallet', 'other'],
-    default: 'bank_transfer'
+    type: DataTypes.ENUM('bank_transfer', 'cash', 'mastercard', 'visa', 'check', 'digital_wallet', 'other'),
+    defaultValue: 'bank_transfer'
   },
-  
-  // Payment transaction details (for card payments)
-  paymentTransaction: {
-    transactionId: String,
-    cardLastFour: String,
-    cardType: {
-      type: String,
-      enum: ['mastercard', 'visa', 'other']
-    }
+  paymentTransactionId: {
+    type: DataTypes.STRING(255),
+    allowNull: true
   },
-
+  paymentCardLastFour: {
+    type: DataTypes.STRING(4),
+    allowNull: true
+  },
+  paymentCardType: {
+    type: DataTypes.ENUM('mastercard', 'visa', 'other'),
+    allowNull: true
+  },
   paymentReference: {
-    type: String
+    type: DataTypes.STRING(255),
+    allowNull: true
   },
-
   paidAt: {
-    type: Date
+    type: DataTypes.DATE,
+    allowNull: true
   },
-
   dueDate: {
-    type: Date
+    type: DataTypes.DATE,
+    allowNull: true
   },
-
-  // Order Statistics (for commission period)
-  orderStats: {
-    totalOrders: {
-      type: Number,
-      default: 0
-    },
-    completedOrders: {
-      type: Number,
-      default: 0
-    },
-    cancelledOrders: {
-      type: Number,
-      default: 0
+  totalOrders: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  completedOrders: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  cancelledOrders: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  notes: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  invoiceNumber: {
+    type: DataTypes.STRING(50),
+    unique: true,
+    allowNull: true
+  },
+  invoiceUrl: {
+    type: DataTypes.STRING(500),
+    allowNull: true
+  },
+  metadata: {
+    type: DataTypes.JSONB,
+    defaultValue: {}
+  },
+  processedBy: {
+    type: DataTypes.UUID,
+    allowNull: true,
+    references: {
+      model: 'users',
+      key: 'id'
     }
   },
-
-  // Notes and Description
-  description: {
-    type: String
-  },
-
-  notes: {
-    type: String
-  },
-
-  // Invoice Details
-  invoiceNumber: {
-    type: String,
-    unique: true,
-    sparse: true
-  },
-
-  invoiceUrl: {
-    type: String
-  },
-
-  // Metadata
-  metadata: {
-    type: Map,
-    of: String
-  },
-
-  // Processing Info
-  processedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  },
-
   processedAt: {
-    type: Date
+    type: DataTypes.DATE,
+    allowNull: true
   }
-
 }, {
-  timestamps: true
-});
-
-// Generate invoice number
-transactionSchema.pre('save', async function(next) {
-  if (!this.invoiceNumber && this.type === 'commission') {
-    const count = await this.constructor.countDocuments();
-    const year = this.period.year;
-    const month = String(this.period.month).padStart(2, '0');
-    this.invoiceNumber = `INV-${year}${month}-${String(count + 1).padStart(6, '0')}`;
+  tableName: 'transactions',
+  timestamps: true,
+  indexes: [
+    { fields: ['adminId', 'periodYear', 'periodMonth'] },
+    { fields: ['status', 'paymentStatus'] },
+    { fields: ['createdAt'] }
+  ],
+  hooks: {
+    beforeValidate: async (transaction) => {
+      // Generate invoice number if not exists
+      if (!transaction.invoiceNumber && transaction.type === 'commission') {
+        const count = await Transaction.count();
+        const year = transaction.periodYear;
+        const month = String(transaction.periodMonth).padStart(2, '0');
+        transaction.invoiceNumber = `INV-${year}${month}-${String(count + 1).padStart(6, '0')}`;
+      }
+    },
+    beforeSave: (transaction) => {
+      // Calculate commission automatically
+      if (transaction.type === 'commission' && transaction.adminRevenue) {
+        transaction.commissionAmount = (transaction.adminRevenue * transaction.commissionRate) / 100;
+        transaction.totalAmount = transaction.commissionAmount;
+      }
+    }
   }
-  next();
 });
 
-// Calculate commission automatically
-transactionSchema.pre('save', function(next) {
-  if (this.type === 'commission' && this.adminRevenue) {
-    this.commissionAmount = (this.adminRevenue * this.commissionRate) / 100;
-    this.totalAmount = this.commissionAmount;
-  }
-  next();
-});
-
-// Index for efficient queries
-transactionSchema.index({ adminId: 1, 'period.year': 1, 'period.month': 1 });
-transactionSchema.index({ status: 1, paymentStatus: 1 });
-// Note: createdAt index is automatically created by timestamps: true
-
-module.exports = mongoose.model('Transaction', transactionSchema);
+module.exports = Transaction;

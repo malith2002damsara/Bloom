@@ -7,7 +7,7 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 // @access  Private (Admin only)
 const getPendingCommission = async (req, res) => {
   try {
-    const admin = await Admin.findById(req.user.id);
+    const admin = await Admin.findByPk(req.user.id);
     
     if (!admin) {
       return res.status(404).json({
@@ -55,7 +55,7 @@ const payWithCash = async (req, res) => {
       });
     }
 
-    const admin = await Admin.findById(req.user.id);
+    const admin = await Admin.findByPk(req.user.id);
     
     if (!admin) {
       return res.status(404).json({
@@ -112,7 +112,7 @@ const createPaymentIntent = async (req, res) => {
       });
     }
 
-    const admin = await Admin.findById(req.user.id);
+    const admin = await Admin.findByPk(req.user.id);
     
     if (!admin) {
       return res.status(404).json({
@@ -183,7 +183,7 @@ const confirmStripePayment = async (req, res) => {
       });
     }
 
-    const admin = await Admin.findById(req.user.id);
+    const admin = await Admin.findByPk(req.user.id);
     
     if (!admin) {
       return res.status(404).json({
@@ -205,8 +205,8 @@ const confirmStripePayment = async (req, res) => {
 
     // Update admin commission
     if (admin.commission) {
-      admin.commission.totalDue = Math.max(0, admin.commission.totalDue - payment.amount);
-      admin.earnings.lastMonthPaid = new Date();
+      admin.commissionTotalDue = Math.max(0, admin.commissionTotalDue - payment.amount);
+      admin.earningsLastMonthPaid = new Date();
       
       // Reactivate admin if they were deactivated
       if (!admin.isActive) {
@@ -251,7 +251,7 @@ const getPaymentHistory = async (req, res) => {
       .populate('verifiedBy', 'name email')
       .lean();
 
-    const total = await CommissionPayment.countDocuments(query);
+    const total = await CommissionPayment.count(query);
 
     res.status(200).json({
       success: true,

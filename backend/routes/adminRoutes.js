@@ -1,4 +1,5 @@
 const express = require('express');
+const { Op } = require('sequelize');
 const {
   adminLogin,
   verifyAdmin,
@@ -47,20 +48,23 @@ const router = express.Router();
 // @access  Private/Admin
 const getDashboardStats = async (req, res) => {
   try {
-    const adminId = req.user._id;
+    const adminId = req.user.id;
     const isSuperAdmin = req.user.role === 'superadmin';
 
     console.log('Dashboard Stats - Admin ID:', adminId);
     console.log('Dashboard Stats - Is SuperAdmin:', isSuperAdmin);
 
-    // Build query for admin's products
-    const productQuery = isSuperAdmin ? {} : { adminId: adminId };
+    // Build where clause for admin's products
+    const productWhere = isSuperAdmin ? {} : { adminId: adminId };
     
-    console.log('Dashboard Stats - Product Query:', productQuery);
+    console.log('Dashboard Stats - Product Where:', productWhere);
     
     // Get admin's products
-    const adminProducts = await Product.find(productQuery).select('_id');
-    const productIds = adminProducts.map(p => p._id);
+    const adminProducts = await Product.findAll({ 
+      where: productWhere,
+      attributes: ['id']
+    });
+    const productIds = adminProducts.map(p => p.id);
     
     console.log('Dashboard Stats - Found Products:', adminProducts.length);
     console.log('Dashboard Stats - Product IDs:', productIds);
@@ -68,9 +72,13 @@ const getDashboardStats = async (req, res) => {
     // Count products
     const totalProducts = adminProducts.length;
     
-    // Get orders containing admin's products
-    const adminOrders = await Order.find({
-      'items.productId': { $in: productIds.map(id => id.toString()) }
+    // Get orders containing admin's products using Sequelize
+    const adminOrders = await Order.findAll({
+      where: {
+        items: {
+          [Op.contains]: productIds.map(id => ({ productId: id }))
+        }
+      }
     });
     
     console.log('Dashboard Stats - Found Orders:', adminOrders.length);
@@ -82,9 +90,8 @@ const getDashboardStats = async (req, res) => {
       order.orderStatus === 'delivered' || order.orderStatus === 'completed'
     );
     const totalSales = completedOrders.reduce((sum, order) => {
-      // Calculate sales only for this admin's products in the order
       const adminItemsTotal = order.items
-        .filter(item => productIds.map(id => id.toString()).includes(item.productId))
+        .filter(item => productIds.includes(item.productId))
         .reduce((itemSum, item) => itemSum + (item.price * item.quantity), 0);
       return sum + adminItemsTotal;
     }, 0);
@@ -93,11 +100,8 @@ const getDashboardStats = async (req, res) => {
     const pendingOrders = adminOrders.filter(order => order.orderStatus === 'pending').length;
     
     // Get low stock products (stock <= 10)
-    const lowStock = await Product.countDocuments({ 
-      ...productQuery,
-      stock: { $lte: 10 }, 
-      inStock: true 
-    });
+    const lowStockWhere = { ...productWhere, stock: { [Op.lte]: 10 }, inStock: true };
+    const lowStock = await Product.count({ where: lowStockWhere });
 
     console.log('Dashboard Stats - Final Stats:', {
       totalSales: Math.round(totalSales * 100) / 100,
@@ -133,7 +137,7 @@ const getDashboardStats = async (req, res) => {
 const getAnalytics = async (req, res) => {
   try {
     const { range = '7d' } = req.query;
-    const adminId = req.user._id;
+    const adminId = req.user.id;
     const isSuperAdmin = req.user.role === 'superadmin';
     
     // Calculate date range
@@ -157,17 +161,24 @@ const getAnalytics = async (req, res) => {
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     }
 
-    // Build query for admin's products
-    const productQuery = isSuperAdmin ? {} : { adminId: adminId };
+    // Build where clause for admin's products
+    const productWhere = isSuperAdmin ? {} : { adminId: adminId };
     
     // Get admin's products
-    const adminProducts = await Product.find(productQuery).select('_id');
-    const productIds = adminProducts.map(p => p._id.toString());
+    const adminProducts = await Product.findAll({ 
+      where: productWhere,
+      attributes: ['id']
+    });
+    const productIds = adminProducts.map(p => p.id);
     
     // Get orders in range containing admin's products
-    const ordersInRange = await Order.find({
-      createdAt: { $gte: startDate, $lte: now },
-      'items.productId': { $in: productIds }
+    const ordersInRange = await Order.findAll({
+      where: {
+        createdAt: { [Op.between]: [startDate, now] },
+        items: {
+          [Op.contains]: productIds.map(id => ({ productId: id }))
+        }
+      }
     });
 
     // Calculate revenue from completed orders

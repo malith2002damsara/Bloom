@@ -1,302 +1,181 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/database');
 
-const productSchema = new mongoose.Schema({
+const Product = sequelize.define('Product', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
   name: {
-    type: String,
-    required: [true, 'Product name is required'],
-    trim: true,
-    maxlength: [100, 'Product name cannot exceed 100 characters']
+    type: DataTypes.STRING(100),
+    allowNull: false,
+    validate: {
+      notEmpty: { msg: 'Product name is required' }
+    }
   },
   description: {
-    type: String,
-    maxlength: [1000, 'Description cannot exceed 1000 characters'],
-    default: ''
+    type: DataTypes.TEXT,
+    defaultValue: ''
   },
   price: {
-    type: Number,
-    min: [0, 'Price cannot be negative'],
-    default: 0
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0,
+    validate: {
+      min: { args: [0], msg: 'Price cannot be negative' }
+    }
   },
-  // Old price before discount (for display purposes)
   oldPrice: {
-    type: Number,
-    min: [0, 'Old price cannot be negative'],
-    default: 0
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0,
+    validate: {
+      min: { args: [0], msg: 'Old price cannot be negative' }
+    }
   },
-  // Discount percentage (0-100) - Auto-calculated from oldPrice and price
   discount: {
-    type: Number,
-    min: [0, 'Discount cannot be negative'],
-    max: [100, 'Discount cannot exceed 100%'],
-    default: 0
+    type: DataTypes.DECIMAL(5, 2),
+    defaultValue: 0,
+    validate: {
+      min: { args: [0], msg: 'Discount cannot be negative' },
+      max: { args: [100], msg: 'Discount cannot exceed 100%' }
+    }
   },
-  // Calculated discounted price (same as price, kept for backwards compatibility)
   discountedPrice: {
-    type: Number,
-    min: [0, 'Price cannot be negative'],
-    default: 0
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0
   },
   category: {
-    type: String,
-    required: [true, 'Product category is required'],
-    enum: ['fresh', 'artificial', 'bears', 'mixed'],
-    default: 'fresh'
+    type: DataTypes.ENUM('fresh', 'artificial', 'bears', 'mixed'),
+    defaultValue: 'fresh',
+    allowNull: false
   },
   occasion: {
-    type: String,
-    trim: true,
-    default: ''
+    type: DataTypes.STRING(100),
+    defaultValue: ''
   },
-  images: [{
-    type: String,
-    required: true
-  }],
-  dimensions: {
-    height: {
-      type: Number,
-      min: [0, 'Height cannot be negative'],
-      default: 0
-    },
-    width: {
-      type: Number,
-      min: [0, 'Width cannot be negative'],
-      default: 0
-    },
-    depth: {
-      type: Number,
-      min: [0, 'Depth cannot be negative'],
-      default: 0
-    }
+  images: {
+    type: DataTypes.JSONB,
+    defaultValue: []
   },
-  
-  // Flower bouquet specific fields
+  dimensionsHeight: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0
+  },
+  dimensionsWidth: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0
+  },
+  dimensionsDepth: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0
+  },
   numberOfFlowers: {
-    type: Number,
-    min: [0, 'Number of flowers cannot be negative'],
-    default: 0
+    type: DataTypes.INTEGER,
+    defaultValue: 0
   },
-  sizes: [{
-    size: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    flowerCount: {
-      type: String,
-      default: ''
-    },
-    price: {
-      type: Number,
-      required: true,
-      min: [0, 'Price cannot be negative']
-    },
-    oldPrice: {
-      type: Number,
-      min: [0, 'Old price cannot be negative'],
-      default: 0
-    },
-    dimensions: {
-      height: {
-        type: Number,
-        min: [0, 'Height cannot be negative'],
-        default: 0
-      },
-      width: {
-        type: Number,
-        min: [0, 'Width cannot be negative'],
-        default: 0
-      },
-      depth: {
-        type: Number,
-        min: [0, 'Depth cannot be negative'],
-        default: 0
-      }
-    }
-  }],
-  
-  // Fresh flower selections
-  freshFlowerSelections: [{
-    flower: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    colors: [{
-      type: String,
-      required: true,
-      trim: true
-    }],
-    count: {
-      type: String,
-      default: ''
-    }
-  }],
-  
-  // Artificial flower selections  
-  artificialFlowerSelections: [{
-    flower: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    colors: [{
-      type: String,
-      required: true,
-      trim: true
-    }],
-    count: {
-      type: String,
-      default: ''
-    }
-  }],
-  
-  // Legacy flower selections (for backward compatibility)
-  flowerSelections: [{
-    flower: {
-      type: String,
-      required: true,
-      trim: true
-    },
-    colors: [{
-      type: String,
-      required: true,
-      trim: true
-    }]
-  }],
-  
-  // Bear specific fields
+  sizes: {
+    type: DataTypes.JSONB,
+    defaultValue: []
+  },
+  freshFlowerSelections: {
+    type: DataTypes.JSONB,
+    defaultValue: []
+  },
+  artificialFlowerSelections: {
+    type: DataTypes.JSONB,
+    defaultValue: []
+  },
+  flowerSelections: {
+    type: DataTypes.JSONB,
+    defaultValue: []
+  },
   bearDetails: {
-    sizes: [{
-      size: {
-        type: String,
-        required: true,
-        trim: true
-      },
-      price: {
-        type: Number,
-        required: true,
-        min: [0, 'Price cannot be negative']
-      },
-      oldPrice: {
-        type: Number,
-        min: [0, 'Old price cannot be negative'],
-        default: 0
-      },
-      dimensions: {
-        height: {
-          type: Number,
-          min: [0, 'Height cannot be negative'],
-          default: 0
-        },
-        width: {
-          type: Number,
-          min: [0, 'Width cannot be negative'],
-          default: 0
-        },
-        depth: {
-          type: Number,
-          min: [0, 'Depth cannot be negative'],
-          default: 0
-        }
-      }
-    }],
-    colors: [{
-      type: String,
-      trim: true
-    }]
+    type: DataTypes.JSONB,
+    defaultValue: {}
   },
-  
-  seller: {
-    name: {
-      type: String,
-      required: [true, 'Seller name is required'],
-      trim: true
-    },
-    contact: {
-      type: String,
-      required: [true, 'Seller contact is required'],
-      trim: true
-    }
+  sellerName: {
+    type: DataTypes.STRING(100),
+    allowNull: false
+  },
+  sellerContact: {
+    type: DataTypes.STRING(100),
+    allowNull: false
   },
   adminId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Admin',
-    required: true
+    type: DataTypes.UUID,
+    allowNull: false,
+    references: {
+      model: 'admins',
+      key: 'id'
+    }
   },
   inStock: {
-    type: Boolean,
-    default: true
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
   },
   stock: {
-    type: Number,
-    default: 0,
-    min: [0, 'Stock cannot be negative']
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+    validate: {
+      min: { args: [0], msg: 'Stock cannot be negative' }
+    }
   },
   status: {
-    type: String,
-    enum: ['active', 'inactive', 'out_of_stock'],
-    default: 'active'
+    type: DataTypes.ENUM('active', 'inactive', 'out_of_stock'),
+    defaultValue: 'active'
   },
-  ratings: {
-    average: {
-      type: Number,
-      default: 0,
-      min: [0, 'Rating cannot be less than 0'],
-      max: [5, 'Rating cannot be more than 5']
-    },
-    count: {
-      type: Number,
-      default: 0
+  ratingsAverage: {
+    type: DataTypes.DECIMAL(3, 2),
+    defaultValue: 0,
+    validate: {
+      min: { args: [0], msg: 'Rating cannot be less than 0' },
+      max: { args: [5], msg: 'Rating cannot be more than 5' }
     }
   },
-  sales: {
-    count: {
-      type: Number,
-      default: 0
-    },
-    revenue: {
-      type: Number,
-      default: 0
-    }
+  ratingsCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  salesCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  salesRevenue: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0
   }
 }, {
-  timestamps: true
-});
-
-// Index for better query performance
-productSchema.index({ category: 1, status: 1 });
-productSchema.index({ name: 'text', description: 'text' });
-productSchema.index({ price: 1 });
-productSchema.index({ 'seller.name': 1 });
-productSchema.index({ adminId: 1 }); // Index for admin filtering
-productSchema.index({ adminId: 1, category: 1 }); // Compound index for better performance
-
-// Update status based on stock
-productSchema.pre('save', function(next) {
-  // Auto-calculate discount percentage if oldPrice is provided
-  if (this.oldPrice > 0 && this.price > 0) {
-    if (this.price < this.oldPrice) {
-      // Calculate discount percentage: ((oldPrice - newPrice) / oldPrice) * 100
-      this.discount = Math.round(((this.oldPrice - this.price) / this.oldPrice) * 100 * 100) / 100; // Round to 2 decimal places
-    } else {
-      this.discount = 0;
+  tableName: 'products',
+  timestamps: true,
+  indexes: [
+    { fields: ['category', 'status'] },
+    { fields: ['price'] },
+    { fields: ['sellerName'] },
+    { fields: ['adminId'] },
+    { fields: ['adminId', 'category'] }
+  ],
+  hooks: {
+    beforeSave: (product) => {
+      // Auto-calculate discount percentage
+      if (product.oldPrice > 0 && product.price > 0 && product.price < product.oldPrice) {
+        product.discount = Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100 * 100) / 100;
+      } else {
+        product.discount = 0;
+      }
+      
+      // Set discounted price
+      product.discountedPrice = product.price;
+      
+      // Update stock status
+      if (product.stock === 0) {
+        product.status = 'out_of_stock';
+        product.inStock = false;
+      } else if (product.stock > 0 && product.status === 'out_of_stock') {
+        product.status = 'active';
+        product.inStock = true;
+      }
     }
-  } else {
-    this.discount = 0;
   }
-  
-  // Set discounted price (same as price, kept for backwards compatibility)
-  this.discountedPrice = this.price;
-  
-  // Update stock status
-  if (this.stock === 0) {
-    this.status = 'out_of_stock';
-    this.inStock = false;
-  } else if (this.stock > 0 && this.status === 'out_of_stock') {
-    this.status = 'active';
-    this.inStock = true;
-  }
-  next();
 });
 
-module.exports = mongoose.model('Product', productSchema);
+module.exports = Product;

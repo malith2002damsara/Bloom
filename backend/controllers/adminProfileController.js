@@ -5,7 +5,7 @@ const Admin = require('../models/Admin');
 // @access  Private (Admin only)
 const getAdminProfile = async (req, res) => {
   try {
-    const admin = await Admin.findById(req.user.id)
+    const admin = await Admin.findByPk(req.user.id)
       .select('-password')
       .lean();
 
@@ -45,7 +45,7 @@ const updateAdminProfile = async (req, res) => {
       address
     } = req.body;
 
-    const admin = await Admin.findById(req.user.id);
+    const admin = await Admin.findByPk(req.user.id);
 
     if (!admin) {
       return res.status(404).json({
@@ -88,7 +88,7 @@ const updateAdminProfile = async (req, res) => {
     await admin.save();
 
     // Return admin without password
-    const updatedAdmin = await Admin.findById(req.user.id).select('-password');
+    const updatedAdmin = await Admin.findByPk(req.user.id).select('-password');
 
     res.status(200).json({
       success: true,
@@ -110,7 +110,7 @@ const updateAdminProfile = async (req, res) => {
 // @access  Private (Admin only)
 const getShopInfo = async (req, res) => {
   try {
-    const admin = await Admin.findById(req.user.id)
+    const admin = await Admin.findByPk(req.user.id)
       .select('name shopName shopDescription adminCode contactInfo address isActive')
       .lean();
 
@@ -164,7 +164,7 @@ const updateAdminPassword = async (req, res) => {
       });
     }
 
-    const admin = await Admin.findById(req.user.id);
+    const admin = await Admin.findByPk(req.user.id);
 
     if (!admin) {
       return res.status(404).json({

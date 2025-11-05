@@ -9,6 +9,9 @@
     "seed": "node seedProducts.js",
     "create-superadmin": "node scripts/create-superadmin.js",
     "seed-superadmin": "node scripts/seed-superadmin.js",
+    "db:fix-admin-createdby-null": "node scripts/fix-admin-createdBy-nullable.js",
+    "db:init": "node scripts/init-database.js",
+    "db:test-create-admin": "node scripts/test-create-admin.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -27,11 +30,13 @@
     "express": "^4.21.2",
     "express-validator": "^7.2.1",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.17.0",
     "multer": "^1.4.5-lts.1",
     "multer-storage-cloudinary": "^4.0.0",
     "node-cron": "^4.2.1",
-    "stripe": "^19.2.0"
+    "pg": "^8.16.3",
+    "sequelize": "^6.37.7",
+    "stripe": "^19.2.0",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

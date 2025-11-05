@@ -1,6 +1,9 @@
 const Feedback = require('../models/Feedback');
 const Order = require('../models/Order');
 const Product = require('../models/Product');
+const User = require('../models/User');
+const { sequelize } = require('../config/database');
+const { Op } = require('sequelize');
 
 // @desc    Submit feedback for a delivered order
 // @route   POST /api/feedback
@@ -8,7 +11,7 @@ const Product = require('../models/Product');
 const submitFeedback = async (req, res) => {
   try {
     const { orderId, productId, rating, comment } = req.body;
-    const userId = req.user._id;
+    const userId = req.user.id;
 
     console.log('=== SUBMIT FEEDBACK ===');
     console.log('User ID:', userId);
@@ -32,14 +35,26 @@ const submitFeedback = async (req, res) => {
       });
     }
 
-    // Check if order exists and belongs to user
-    const order = await Order.findOne({ _id: orderId, userId });
-    if (!order) {
+    // Check if order exists and belongs to user using raw SQL (JSONB query)
+    const orders = await sequelize.query(`
+      SELECT id, "orderStatus", items
+      FROM "Orders"
+      WHERE id = :orderId
+        AND "userId" = :userId
+      LIMIT 1
+    `, {
+      replacements: { orderId, userId },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    if (orders.length === 0) {
       return res.status(404).json({
         success: false,
         message: 'Order not found'
       });
     }
+
+    const order = orders[0];
 
     // Check if order is delivered
     if (order.orderStatus !== 'delivered') {
@@ -50,7 +65,7 @@ const submitFeedback = async (req, res) => {
     }
 
     // Check if product is in the order
-    const orderItem = order.items.find(item => item.productId.toString() === productId);
+    const orderItem = order.items.find(item => item.productId === productId);
     if (!orderItem) {
       return res.status(400).json({
         success: false,
@@ -59,7 +74,7 @@ const submitFeedback = async (req, res) => {
     }
 
     // Get product to retrieve adminId
-    const product = await Product.findById(productId);
+    const product = await Product.findByPk(productId);
     if (!product) {
       return res.status(404).json({
         success: false,
@@ -68,7 +83,9 @@ const submitFeedback = async (req, res) => {
     }
 
     // Check if feedback already exists
-    const existingFeedback = await Feedback.findOne({ userId, productId, orderId });
+    const existingFeedback = await Feedback.findOne({
+      where: { userId, productId, orderId }
+    });
     if (existingFeedback) {
       return res.status(400).json({
         success: false,
@@ -77,7 +94,7 @@ const submitFeedback = async (req, res) => {
     }
 
     // Create feedback
-    const feedback = new Feedback({
+    const feedback = await Feedback.create({
       userId,
       orderId,
       productId,
@@ -88,11 +105,15 @@ const submitFeedback = async (req, res) => {
       isVerifiedPurchase: true
     });
 
-    await feedback.save();
-
-    // Mark order as feedback submitted
-    order.feedbackSubmitted = true;
-    await order.save();
+    // Mark order as feedback submitted - update using raw SQL
+    await sequelize.query(`
+      UPDATE "Orders"
+      SET "feedbackSubmitted" = true
+      WHERE id = :orderId
+    `, {
+      replacements: { orderId },
+      type: sequelize.QueryTypes.UPDATE
+    });
 
     console.log('✅ Feedback submitted successfully');
 
@@ -134,46 +155,47 @@ const getProductFeedback = async (req, res) => {
     console.log('Product ID:', productId);
 
     // Get latest 10 approved feedbacks with highest ratings first
-    const feedbacks = await Feedback.find({
-      productId,
-      status: 'approved'
-    })
-      .populate('userId', 'name')
-      .select('rating comment createdAt userId isVerifiedPurchase helpfulCount')
-      .sort({ rating: -1, createdAt: -1 }) // Sort by rating (highest first), then newest
-      .skip(skip)
-      .limit(limit)
-      .lean();
-
-    const total = await Feedback.countDocuments({
-      productId,
-      status: 'approved'
+    const feedbacks = await Feedback.findAll({
+      where: {
+        productId,
+        status: 'approved'
+      },
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['name']
+      }],
+      attributes: ['rating', 'comment', 'createdAt', 'userId', 'isVerifiedPurchase', 'helpfulCount'],
+      order: [['rating', 'DESC'], ['createdAt', 'DESC']], // Sort by rating (highest first), then newest
+      offset: skip,
+      limit: limit
     });
 
-    // Calculate rating distribution
-    const ratingStats = await Feedback.aggregate([
-      {
-        $match: {
-          productId: require('mongoose').Types.ObjectId(productId),
-          status: 'approved'
-        }
-      },
-      {
-        $group: {
-          _id: '$rating',
-          count: { $sum: 1 }
-        }
-      },
-      {
-        $sort: { _id: -1 }
+    const total = await Feedback.count({
+      where: {
+        productId,
+        status: 'approved'
       }
-    ]);
+    });
+
+    // Calculate rating distribution using raw SQL
+    const ratingStats = await sequelize.query(`
+      SELECT rating, COUNT(*) as count
+      FROM "Feedback"
+      WHERE "productId" = :productId
+        AND status = 'approved'
+      GROUP BY rating
+      ORDER BY rating DESC
+    `, {
+      replacements: { productId },
+      type: sequelize.QueryTypes.SELECT
+    });
 
     const ratingDistribution = {
       5: 0, 4: 0, 3: 0, 2: 0, 1: 0
     };
     ratingStats.forEach(stat => {
-      ratingDistribution[stat._id] = stat.count;
+      ratingDistribution[stat.rating] = parseInt(stat.count);
     });
 
     console.log(`✅ Retrieved ${feedbacks.length} feedbacks`);
@@ -210,15 +232,26 @@ const getTopComments = async (req, res) => {
   try {
     console.log('=== GET TOP 10 COMMENTS ===');
 
-    const topComments = await Feedback.find({
-      status: 'approved'
-    })
-      .populate('userId', 'name')
-      .populate('productId', 'name images')
-      .select('rating comment createdAt userId productId isVerifiedPurchase')
-      .sort({ rating: -1, createdAt: -1 })
-      .limit(10)
-      .lean();
+    const topComments = await Feedback.findAll({
+      where: {
+        status: 'approved'
+      },
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['name']
+        },
+        {
+          model: Product,
+          as: 'product',
+          attributes: ['name', 'images']
+        }
+      ],
+      attributes: ['rating', 'comment', 'createdAt', 'userId', 'productId', 'isVerifiedPurchase'],
+      order: [['rating', 'DESC'], ['createdAt', 'DESC']],
+      limit: 10
+    });
 
     console.log(`✅ Retrieved ${topComments.length} top comments`);
 
@@ -245,7 +278,7 @@ const getTopComments = async (req, res) => {
 // @access  Private (Admin)
 const getAdminFeedback = async (req, res) => {
   try {
-    const adminId = req.user._id;
+    const adminId = req.user.id;
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
     const skip = (page - 1) * limit;
@@ -259,34 +292,47 @@ const getAdminFeedback = async (req, res) => {
       query.productId = productId;
     }
 
-    const feedbacks = await Feedback.find(query)
-      .populate('userId', 'name')
-      .populate('productId', 'name images')
-      .populate('orderId', 'orderNumber')
-      .select('rating comment createdAt userId productId orderId isVerifiedPurchase')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
-
-    const total = await Feedback.countDocuments(query);
-
-    // Calculate average rating for admin's products
-    const avgRating = await Feedback.aggregate([
-      {
-        $match: {
-          adminId: require('mongoose').Types.ObjectId(adminId),
-          status: 'approved'
+    const feedbacks = await Feedback.findAll({
+      where: query,
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['name']
+        },
+        {
+          model: Product,
+          as: 'product',
+          attributes: ['name', 'images']
+        },
+        {
+          model: Order,
+          as: 'order',
+          attributes: ['orderNumber']
         }
-      },
-      {
-        $group: {
-          _id: null,
-          averageRating: { $avg: '$rating' },
-          totalFeedbacks: { $sum: 1 }
-        }
-      }
-    ]);
+      ],
+      attributes: ['rating', 'comment', 'createdAt', 'userId', 'productId', 'orderId', 'isVerifiedPurchase'],
+      order: [['createdAt', 'DESC']],
+      offset: skip,
+      limit: limit
+    });
+
+    const total = await Feedback.count({ where: query });
+
+    // Calculate average rating for admin's products using raw SQL
+    const avgRatingResult = await sequelize.query(`
+      SELECT 
+        AVG(rating) as "averageRating",
+        COUNT(*) as "totalFeedbacks"
+      FROM "Feedback"
+      WHERE "adminId" = :adminId
+        AND status = 'approved'
+    `, {
+      replacements: { adminId },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    const avgRating = avgRatingResult[0];
 
     console.log(`✅ Retrieved ${feedbacks.length} feedbacks for admin`);
 
@@ -295,9 +341,9 @@ const getAdminFeedback = async (req, res) => {
       message: 'Admin feedback retrieved successfully',
       data: {
         feedbacks,
-        statistics: avgRating.length > 0 ? {
-          averageRating: Math.round(avgRating[0].averageRating * 10) / 10,
-          totalFeedbacks: avgRating[0].totalFeedbacks
+        statistics: avgRating.averageRating ? {
+          averageRating: Math.round(parseFloat(avgRating.averageRating) * 10) / 10,
+          totalFeedbacks: parseInt(avgRating.totalFeedbacks)
         } : {
           averageRating: 0,
           totalFeedbacks: 0
@@ -327,16 +373,27 @@ const getAdminFeedback = async (req, res) => {
 const checkFeedbackEligibility = async (req, res) => {
   try {
     const { orderId } = req.params;
-    const userId = req.user._id;
+    const userId = req.user.id;
 
-    const order = await Order.findOne({ _id: orderId, userId });
+    const orders = await sequelize.query(`
+      SELECT id, "orderStatus", "feedbackSubmitted", items
+      FROM "Orders"
+      WHERE id = :orderId
+        AND "userId" = :userId
+      LIMIT 1
+    `, {
+      replacements: { orderId, userId },
+      type: sequelize.QueryTypes.SELECT
+    });
     
-    if (!order) {
+    if (orders.length === 0) {
       return res.status(404).json({
         success: false,
         message: 'Order not found'
       });
     }
+
+    const order = orders[0];
 
     const eligibility = {
       canSubmit: order.orderStatus === 'delivered' && !order.feedbackSubmitted,
@@ -349,9 +406,11 @@ const checkFeedbackEligibility = async (req, res) => {
     if (eligibility.canSubmit) {
       for (const item of order.items) {
         const existingFeedback = await Feedback.findOne({
-          userId,
-          productId: item.productId,
-          orderId
+          where: {
+            userId,
+            productId: item.productId,
+            orderId
+          }
         });
 
         eligibility.products.push({

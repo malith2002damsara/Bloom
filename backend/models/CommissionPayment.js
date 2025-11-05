@@ -1,86 +1,70 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/database');
 
-const commissionPaymentSchema = new mongoose.Schema({
+const CommissionPayment = sequelize.define('CommissionPayment', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
   adminId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Admin',
-    required: true,
-    index: true
+    type: DataTypes.UUID,
+    allowNull: false,
+    references: {
+      model: 'admins',
+      key: 'id'
+    }
   },
   amount: {
-    type: Number,
-    required: true,
-    min: 0
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    validate: {
+      min: { args: [0], msg: 'Amount cannot be negative' }
+    }
   },
   paymentMethod: {
-    type: String,
-    enum: ['cash', 'mastercard', 'visa', 'stripe'],
-    required: true
+    type: DataTypes.ENUM('cash', 'mastercard', 'visa', 'stripe'),
+    allowNull: false
   },
   status: {
-    type: String,
-    enum: ['pending_verification', 'paid', 'verified', 'rejected'],
-    default: 'pending_verification'
+    type: DataTypes.ENUM('pending_verification', 'paid', 'verified', 'rejected'),
+    defaultValue: 'pending_verification'
   },
   stripeTransactionId: {
-    type: String,
-    default: null
+    type: DataTypes.STRING(255),
+    allowNull: true
   },
   stripePaymentIntentId: {
-    type: String,
-    default: null
+    type: DataTypes.STRING(255),
+    allowNull: true
   },
   notes: {
-    type: String,
-    default: ''
+    type: DataTypes.TEXT,
+    defaultValue: ''
   },
   verifiedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'SuperAdmin',
-    default: null
+    type: DataTypes.UUID,
+    allowNull: true,
+    references: {
+      model: 'users',
+      key: 'id'
+    }
   },
   verifiedAt: {
-    type: Date,
-    default: null
+    type: DataTypes.DATE,
+    allowNull: true
   },
   receiptUrl: {
-    type: String,
-    default: null
+    type: DataTypes.STRING(500),
+    allowNull: true
   }
 }, {
-  timestamps: true
+  tableName: 'commission_payments',
+  timestamps: true,
+  indexes: [
+    { fields: ['adminId', 'createdAt'] },
+    { fields: ['status'] }
+  ]
 });
 
-// Index for querying payments by admin
-commissionPaymentSchema.index({ adminId: 1, createdAt: -1 });
-
-// Index for filtering by status
-commissionPaymentSchema.index({ status: 1 });
-
-// Virtual for payment display name
-commissionPaymentSchema.virtual('paymentMethodDisplay').get(function() {
-  const methods = {
-    'cash': 'Cash Payment',
-    'mastercard': 'Mastercard',
-    'visa': 'Visa',
-    'stripe': 'Credit Card (Stripe)'
-  };
-  return methods[this.paymentMethod] || this.paymentMethod;
-});
-
-// Virtual for status display
-commissionPaymentSchema.virtual('statusDisplay').get(function() {
-  const statuses = {
-    'pending_verification': 'Pending Verification',
-    'paid': 'Paid',
-    'verified': 'Verified',
-    'rejected': 'Rejected'
-  };
-  return statuses[this.status] || this.status;
-});
-
-// Ensure virtuals are included in JSON
-commissionPaymentSchema.set('toJSON', { virtuals: true });
-commissionPaymentSchema.set('toObject', { virtuals: true });
-
-module.exports = mongoose.model('CommissionPayment', commissionPaymentSchema);
+module.exports = CommissionPayment;

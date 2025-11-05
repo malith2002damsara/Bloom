@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Admin = require('../models/Admin');
-const mongoose = require('mongoose');
+const SuperAdmin = require('../models/SuperAdmin');
+const { validate: uuidValidate } = require('uuid');
 
 const auth = async (req, res, next) => {
   try {
@@ -16,7 +17,7 @@ const auth = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    if (!mongoose.Types.ObjectId.isValid(decoded.userId)) {
+    if (!uuidValidate(decoded.userId)) {
       return res.status(401).json({ 
         success: false, 
         message: 'Invalid token format' 
@@ -27,7 +28,9 @@ const auth = async (req, res, next) => {
     
     // Check if it's an admin
     if (decoded.role === 'admin') {
-      user = await Admin.findById(decoded.userId).select('-password');
+      user = await Admin.findByPk(decoded.userId, {
+        attributes: { exclude: ['password'] }
+      });
       
       if (!user) {
         return res.status(401).json({ 
@@ -53,10 +56,12 @@ const auth = async (req, res, next) => {
       }
     }
     // Check if it's a superadmin
-    else if (decoded.role === 'superadmin') {
-      user = await User.findById(decoded.userId).select('-password');
+    else if (decoded.role === 'superadmin' || decoded.isSuperAdmin) {
+      user = await SuperAdmin.findByPk(decoded.userId, {
+        attributes: { exclude: ['password'] }
+      });
       
-      if (!user || user.role !== 'superadmin') {
+      if (!user) {
         return res.status(401).json({ 
           success: false, 
           message: 'SuperAdmin account not found' 
@@ -78,10 +83,17 @@ const auth = async (req, res, next) => {
           message: 'Password was changed. Please login again.' 
         });
       }
+
+      // Ensure role is set
+      if (!user.role) {
+        user.role = 'superadmin';
+      }
     }
     // Regular user
     else {
-      user = await User.findById(decoded.userId).select('-password');
+      user = await User.findByPk(decoded.userId, {
+        attributes: { exclude: ['password'] }
+      });
       
       if (!user) {
         return res.status(401).json({ 
@@ -112,12 +124,6 @@ const auth = async (req, res, next) => {
       return res.status(401).json({ 
         success: false, 
         message: 'Token expired' 
-      });
-    }
-    if (error.name === 'CastError') {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Invalid token format' 
       });
     }
     res.status(500).json({ 

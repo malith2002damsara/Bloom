@@ -2,24 +2,27 @@ const Product = require('../models/Product');
 const Order = require('../models/Order');
 const Admin = require('../models/Admin');
 const Feedback = require('../models/Feedback');
+const User = require('../models/User');
+const { fn, col, Op } = require('sequelize');
+const { sequelize } = require('../config/database');
 
 // @desc    Get Admin Dashboard Statistics
 // @route   GET /api/admin/dashboard/stats
 // @access  Private (Admin only)
 const getAdminDashboardStats = async (req, res) => {
   try {
-    const adminId = req.user._id;
+    const adminId = req.user.id;
 
-    // Get product statistics for this admin
-    const productStats = await Product.aggregate([
-      { $match: { adminId: adminId } },
-      {
-        $group: {
-          _id: '$status',
-          count: { $sum: 1 }
-        }
-      }
-    ]);
+    // Get product statistics for this admin using Sequelize
+    const productStats = await Product.findAll({
+      where: { adminId },
+      attributes: [
+        'status',
+        [fn('COUNT', col('id')), 'count']
+      ],
+      group: ['status'],
+      raw: true
+    });
 
     // Convert to object for easier access
     const productStatusCounts = {
@@ -30,20 +33,25 @@ const getAdminDashboardStats = async (req, res) => {
     };
 
     productStats.forEach(stat => {
-      productStatusCounts[stat._id] = stat.count;
-      productStatusCounts.total += stat.count;
+      productStatusCounts[stat.status] = parseInt(stat.count);
+      productStatusCounts.total += parseInt(stat.count);
     });
 
-    // Get order statistics for orders containing this admin's products
-    const orderStats = await Order.aggregate([
-      { $match: { 'items.adminId': adminId } },
-      {
-        $group: {
-          _id: '$orderStatus',
-          count: { $sum: 1 }
-        }
-      }
-    ]);
+    // Get order statistics - need to search in JSONB items array
+    const orderStats = await sequelize.query(`
+      SELECT 
+        "orderStatus",
+        COUNT(*) as count
+      FROM orders
+      WHERE EXISTS (
+        SELECT 1 FROM jsonb_array_elements(items) as item
+        WHERE (item->>'adminId')::uuid = :adminId
+      )
+      GROUP BY "orderStatus"
+    `, {
+      replacements: { adminId },
+      type: sequelize.QueryTypes.SELECT
+    });
 
     const orderStatusCounts = {
       pending: 0,
@@ -56,58 +64,63 @@ const getAdminDashboardStats = async (req, res) => {
     };
 
     orderStats.forEach(stat => {
-      orderStatusCounts[stat._id] = stat.count;
-      orderStatusCounts.total += stat.count;
+      orderStatusCounts[stat.orderStatus] = parseInt(stat.count);
+      orderStatusCounts.total += parseInt(stat.count);
     });
 
     // Calculate revenue from completed orders
-    const revenueData = await Order.aggregate([
-      { $match: { 'items.adminId': adminId, orderStatus: { $in: ['delivered', 'completed'] } } },
-      { $unwind: '$items' },
-      { $match: { 'items.adminId': adminId } },
-      {
-        $group: {
-          _id: null,
-          totalRevenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } },
-          totalOrders: { $addToSet: '$_id' }
-        }
-      }
-    ]);
+    const revenueData = await sequelize.query(`
+      SELECT 
+        SUM((item->>'price')::numeric * (item->>'quantity')::numeric) as "totalRevenue",
+        COUNT(DISTINCT o.id) as "totalOrders"
+      FROM orders o,
+      jsonb_array_elements(o.items) as item
+      WHERE (item->>'adminId')::uuid = :adminId
+        AND o."orderStatus" IN ('delivered', 'completed')
+    `, {
+      replacements: { adminId },
+      type: sequelize.QueryTypes.SELECT
+    });
 
-    const revenue = revenueData.length > 0 ? {
-      total: Math.round(revenueData[0].totalRevenue * 100) / 100,
-      orderCount: revenueData[0].totalOrders.length
+    const revenue = revenueData[0] && revenueData[0].totalRevenue ? {
+      total: Math.round(parseFloat(revenueData[0].totalRevenue) * 100) / 100,
+      orderCount: parseInt(revenueData[0].totalOrders) || 0
     } : {
       total: 0,
       orderCount: 0
     };
 
     // Get pending orders (recent 5)
-    const pendingOrders = await Order.find({
-      'items.adminId': adminId,
-      orderStatus: { $in: ['pending', 'confirmed', 'processing'] }
-    })
-      .populate('userId', 'name email')
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .select('orderNumber orderStatus total createdAt userId');
-
-    // Filter items to show only admin's products in pending orders
-    const filteredPendingOrders = pendingOrders.map(order => {
-      const orderObj = order.toObject();
-      if (orderObj.items) {
-        orderObj.items = orderObj.items.filter(item => 
-          item.adminId.toString() === adminId.toString()
-        );
-      }
-      return orderObj;
+    const pendingOrders = await sequelize.query(`
+      SELECT 
+        o.id,
+        o."orderNumber",
+        o."orderStatus",
+        o.total,
+        o."createdAt",
+        o."customerName" as "userName",
+        o."customerEmail" as "userEmail"
+      FROM orders o
+      WHERE EXISTS (
+        SELECT 1 FROM jsonb_array_elements(o.items) as item
+        WHERE (item->>'adminId')::uuid = :adminId
+      )
+      AND o."orderStatus" IN ('pending', 'confirmed', 'processing')
+      ORDER BY o."createdAt" DESC
+      LIMIT 5
+    `, {
+      replacements: { adminId },
+      type: sequelize.QueryTypes.SELECT
     });
 
     // Get recent products (last 5 added)
-    const recentProducts = await Product.find({ adminId: adminId })
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .select('name category price images status createdAt');
+    const recentProducts = await Product.findAll({
+      where: { adminId },
+      attributes: ['id', 'name', 'category', 'price', 'images', 'status', 'createdAt'],
+      order: [['createdAt', 'DESC']],
+      limit: 5,
+      raw: true
+    });
 
     res.json({
       success: true,
@@ -115,7 +128,7 @@ const getAdminDashboardStats = async (req, res) => {
         products: productStatusCounts,
         orders: orderStatusCounts,
         revenue,
-        pendingOrders: filteredPendingOrders,
+        pendingOrders,
         recentProducts
       }
     });
@@ -135,58 +148,80 @@ const getAdminDashboardStats = async (req, res) => {
 // @access  Private (Admin only)
 const getAdminProductStats = async (req, res) => {
   try {
-    const adminId = req.user._id;
+    const adminId = req.user.id;
 
-    // Get detailed product statistics
-    const stats = await Product.aggregate([
-      { $match: { adminId: adminId } },
-      {
-        $facet: {
-          byStatus: [
-            { $group: { _id: '$status', count: { $sum: 1 } } }
-          ],
-          byCategory: [
-            { $group: { _id: '$category', count: { $sum: 1 } } }
-          ],
-          stockInfo: [
-            {
-              $group: {
-                _id: null,
-                totalStock: { $sum: '$stock' },
-                avgStock: { $avg: '$stock' },
-                lowStock: {
-                  $sum: { $cond: [{ $lte: ['$stock', 5] }, 1, 0] }
-                },
-                outOfStock: {
-                  $sum: { $cond: [{ $eq: ['$stock', 0] }, 1, 0] }
-                }
-              }
-            }
-          ],
-          priceInfo: [
-            {
-              $group: {
-                _id: null,
-                avgPrice: { $avg: '$price' },
-                minPrice: { $min: '$price' },
-                maxPrice: { $max: '$price' }
-              }
-            }
-          ]
-        }
+    // Get by status
+    const byStatus = await Product.findAll({
+      where: { adminId },
+      attributes: [
+        'status',
+        [fn('COUNT', col('id')), 'count']
+      ],
+      group: ['status'],
+      raw: true
+    });
+
+    // Get by category
+    const byCategory = await Product.findAll({
+      where: { adminId },
+      attributes: [
+        'category',
+        [fn('COUNT', col('id')), 'count']
+      ],
+      group: ['category'],
+      raw: true
+    });
+
+    // Get stock info
+    const stockInfo = await Product.findOne({
+      where: { adminId },
+      attributes: [
+        [fn('SUM', col('stock')), 'totalStock'],
+        [fn('AVG', col('stock')), 'avgStock']
+      ],
+      raw: true
+    });
+
+    // Get low stock and out of stock counts
+    const lowStockCount = await Product.count({
+      where: {
+        adminId,
+        stock: { [Op.lte]: 5, [Op.gt]: 0 }
       }
-    ]);
+    });
 
-    const totalProducts = await Product.countDocuments({ adminId: adminId });
+    const outOfStockCount = await Product.count({
+      where: {
+        adminId,
+        stock: 0
+      }
+    });
+
+    // Get price info
+    const priceInfo = await Product.findOne({
+      where: { adminId },
+      attributes: [
+        [fn('AVG', col('price')), 'avgPrice'],
+        [fn('MIN', col('price')), 'minPrice'],
+        [fn('MAX', col('price')), 'maxPrice']
+      ],
+      raw: true
+    });
+
+    const totalProducts = await Product.count({ where: { adminId } });
 
     res.json({
       success: true,
       data: {
         total: totalProducts,
-        byStatus: stats[0].byStatus,
-        byCategory: stats[0].byCategory,
-        stock: stats[0].stockInfo[0] || {},
-        pricing: stats[0].priceInfo[0] || {}
+        byStatus,
+        byCategory,
+        stock: {
+          ...stockInfo,
+          lowStock: lowStockCount,
+          outOfStock: outOfStockCount
+        },
+        pricing: priceInfo || {}
       }
     });
 
@@ -205,79 +240,80 @@ const getAdminProductStats = async (req, res) => {
 // @access  Private (Admin only)
 const getAdminOrderStats = async (req, res) => {
   try {
-    const adminId = req.user._id;
+    const adminId = req.user.id;
     const { startDate, endDate } = req.query;
 
-    // Build date filter
-    let dateFilter = {};
+    // Build date filter for SQL
+    let dateFilter = '';
+    let replacements = { adminId };
+
     if (startDate || endDate) {
-      dateFilter.createdAt = {};
-      if (startDate) dateFilter.createdAt.$gte = new Date(startDate);
-      if (endDate) dateFilter.createdAt.$lte = new Date(endDate);
+      if (startDate) {
+        dateFilter += ` AND o."createdAt" >= :startDate`;
+        replacements.startDate = new Date(startDate);
+      }
+      if (endDate) {
+        dateFilter += ` AND o."createdAt" <= :endDate`;
+        replacements.endDate = new Date(endDate);
+      }
     }
 
-    // Get order statistics
-    const stats = await Order.aggregate([
-      { 
-        $match: { 
-          'items.adminId': adminId,
-          ...dateFilter
-        } 
-      },
-      { $unwind: '$items' },
-      { $match: { 'items.adminId': adminId } },
-      {
-        $group: {
-          _id: '$orderStatus',
-          count: { $sum: 1 },
-          totalRevenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } },
-          avgOrderValue: { $avg: { $multiply: ['$items.price', '$items.quantity'] } }
-        }
-      }
-    ]);
+    // Get order statistics by status
+    const stats = await sequelize.query(`
+      SELECT 
+        o."orderStatus",
+        COUNT(DISTINCT o.id) as count,
+        SUM((item->>'price')::numeric * (item->>'quantity')::numeric) as "totalRevenue",
+        AVG((item->>'price')::numeric * (item->>'quantity')::numeric) as "avgOrderValue"
+      FROM orders o,
+      jsonb_array_elements(o.items) as item
+      WHERE (item->>'adminId')::uuid = :adminId
+        ${dateFilter}
+      GROUP BY o."orderStatus"
+    `, {
+      replacements,
+      type: sequelize.QueryTypes.SELECT
+    });
 
-    // Get monthly order trends (last 6 months)
+    // Get monthly trends (last 6 months)
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-    const monthlyTrends = await Order.aggregate([
-      { 
-        $match: { 
-          'items.adminId': adminId,
-          createdAt: { $gte: sixMonthsAgo }
-        } 
-      },
-      { $unwind: '$items' },
-      { $match: { 'items.adminId': adminId } },
-      {
-        $group: {
-          _id: {
-            year: { $year: '$createdAt' },
-            month: { $month: '$createdAt' }
-          },
-          orderCount: { $sum: 1 },
-          revenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } }
-        }
-      },
-      { $sort: { '_id.year': 1, '_id.month': 1 } }
-    ]);
+    const monthlyTrends = await sequelize.query(`
+      SELECT 
+        EXTRACT(YEAR FROM o."createdAt") as year,
+        EXTRACT(MONTH FROM o."createdAt") as month,
+        COUNT(DISTINCT o.id) as "orderCount",
+        SUM((item->>'price')::numeric * (item->>'quantity')::numeric) as revenue
+      FROM orders o,
+      jsonb_array_elements(o.items) as item
+      WHERE (item->>'adminId')::uuid = :adminId
+        AND o."createdAt" >= :sixMonthsAgo
+      GROUP BY year, month
+      ORDER BY year, month
+    `, {
+      replacements: { adminId, sixMonthsAgo },
+      type: sequelize.QueryTypes.SELECT
+    });
 
     // Get top selling products
-    const topProducts = await Order.aggregate([
-      { $match: { 'items.adminId': adminId, orderStatus: { $in: ['delivered', 'completed'] } } },
-      { $unwind: '$items' },
-      { $match: { 'items.adminId': adminId } },
-      {
-        $group: {
-          _id: '$items.productId',
-          productName: { $first: '$items.name' },
-          totalSold: { $sum: '$items.quantity' },
-          totalRevenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } }
-        }
-      },
-      { $sort: { totalSold: -1 } },
-      { $limit: 10 }
-    ]);
+    const topProducts = await sequelize.query(`
+      SELECT 
+        (item->>'productId')::uuid as "productId",
+        item->>'name' as "productName",
+        SUM((item->>'quantity')::integer) as "totalSold",
+        SUM((item->>'price')::numeric * (item->>'quantity')::numeric) as "totalRevenue"
+      FROM orders o,
+      jsonb_array_elements(o.items) as item
+      WHERE (item->>'adminId')::uuid = :adminId
+        AND o."orderStatus" IN ('delivered', 'completed')
+      GROUP BY (item->>'productId'), (item->>'name')
+      ORDER BY "totalSold" DESC
+      LIMIT 10
+    `, {
+      replacements: { adminId },
+      type: sequelize.QueryTypes.SELECT
+    });
 
     res.json({
       success: true,
@@ -303,33 +339,37 @@ const getAdminOrderStats = async (req, res) => {
 // @access  Private (Admin only)
 const getAdminRevenue = async (req, res) => {
   try {
-    const adminId = req.user._id;
-    const { period = 'all' } = req.query; // all, today, week, month, year
+    const adminId = req.user.id;
+    const { period = 'all' } = req.query;
 
     // Calculate date range based on period
-    let dateFilter = {};
+    let dateFilter = '';
+    let replacements = { adminId };
     const now = new Date();
 
     switch (period) {
       case 'today':
-        dateFilter.createdAt = {
-          $gte: new Date(now.setHours(0, 0, 0, 0))
-        };
+        const today = new Date(now.setHours(0, 0, 0, 0));
+        dateFilter = ` AND o."createdAt" >= :dateFrom`;
+        replacements.dateFrom = today;
         break;
       case 'week':
         const weekAgo = new Date();
         weekAgo.setDate(weekAgo.getDate() - 7);
-        dateFilter.createdAt = { $gte: weekAgo };
+        dateFilter = ` AND o."createdAt" >= :dateFrom`;
+        replacements.dateFrom = weekAgo;
         break;
       case 'month':
         const monthAgo = new Date();
         monthAgo.setMonth(monthAgo.getMonth() - 1);
-        dateFilter.createdAt = { $gte: monthAgo };
+        dateFilter = ` AND o."createdAt" >= :dateFrom`;
+        replacements.dateFrom = monthAgo;
         break;
       case 'year':
         const yearAgo = new Date();
         yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-        dateFilter.createdAt = { $gte: yearAgo };
+        dateFilter = ` AND o."createdAt" >= :dateFrom`;
+        replacements.dateFrom = yearAgo;
         break;
       default:
         // all time - no date filter
@@ -337,66 +377,52 @@ const getAdminRevenue = async (req, res) => {
     }
 
     // Calculate revenue by order status
-    const revenueByStatus = await Order.aggregate([
-      { 
-        $match: { 
-          'items.adminId': adminId,
-          ...dateFilter
-        } 
-      },
-      { $unwind: '$items' },
-      { $match: { 'items.adminId': adminId } },
-      {
-        $group: {
-          _id: '$orderStatus',
-          revenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } },
-          orderCount: { $sum: 1 }
-        }
-      }
-    ]);
+    const revenueByStatus = await sequelize.query(`
+      SELECT 
+        o."orderStatus",
+        SUM((item->>'price')::numeric * (item->>'quantity')::numeric) as revenue,
+        COUNT(*) as "orderCount"
+      FROM orders o,
+      jsonb_array_elements(o.items) as item
+      WHERE (item->>'adminId')::uuid = :adminId
+        ${dateFilter}
+      GROUP BY o."orderStatus"
+    `, {
+      replacements,
+      type: sequelize.QueryTypes.SELECT
+    });
 
-    // Calculate total revenue and pending revenue
+    // Calculate totals
     const totalRevenue = revenueByStatus
-      .filter(r => ['delivered', 'completed'].includes(r._id))
-      .reduce((sum, r) => sum + r.revenue, 0);
+      .filter(r => ['delivered', 'completed'].includes(r.orderStatus))
+      .reduce((sum, r) => sum + parseFloat(r.revenue || 0), 0);
 
     const pendingRevenue = revenueByStatus
-      .filter(r => ['pending', 'confirmed', 'processing', 'shipped'].includes(r._id))
-      .reduce((sum, r) => sum + r.revenue, 0);
+      .filter(r => ['pending', 'confirmed', 'processing', 'shipped'].includes(r.orderStatus))
+      .reduce((sum, r) => sum + parseFloat(r.revenue || 0), 0);
 
     const cancelledRevenue = revenueByStatus
-      .filter(r => r._id === 'cancelled')
-      .reduce((sum, r) => sum + r.revenue, 0);
+      .filter(r => r.orderStatus === 'cancelled')
+      .reduce((sum, r) => sum + parseFloat(r.revenue || 0), 0);
 
     // Get revenue by category
-    const revenueByCategory = await Order.aggregate([
-      { 
-        $match: { 
-          'items.adminId': adminId,
-          orderStatus: { $in: ['delivered', 'completed'] },
-          ...dateFilter
-        } 
-      },
-      { $unwind: '$items' },
-      { $match: { 'items.adminId': adminId } },
-      {
-        $lookup: {
-          from: 'products',
-          localField: 'items.productId',
-          foreignField: '_id',
-          as: 'product'
-        }
-      },
-      { $unwind: { path: '$product', preserveNullAndEmptyArrays: true } },
-      {
-        $group: {
-          _id: '$product.category',
-          revenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } },
-          itemCount: { $sum: '$items.quantity' }
-        }
-      },
-      { $sort: { revenue: -1 } }
-    ]);
+    const revenueByCategory = await sequelize.query(`
+      SELECT 
+        p.category,
+        SUM((item->>'price')::numeric * (item->>'quantity')::numeric) as revenue,
+        SUM((item->>'quantity')::integer) as "itemCount"
+      FROM orders o,
+      jsonb_array_elements(o.items) as item
+      LEFT JOIN products p ON (item->>'productId')::uuid = p.id
+      WHERE (item->>'adminId')::uuid = :adminId
+        AND o."orderStatus" IN ('delivered', 'completed')
+        ${dateFilter}
+      GROUP BY p.category
+      ORDER BY revenue DESC
+    `, {
+      replacements,
+      type: sequelize.QueryTypes.SELECT
+    });
 
     res.json({
       success: true,
@@ -408,14 +434,14 @@ const getAdminRevenue = async (req, res) => {
           cancelledRevenue: Math.round(cancelledRevenue * 100) / 100
         },
         byStatus: revenueByStatus.map(r => ({
-          status: r._id,
-          revenue: Math.round(r.revenue * 100) / 100,
-          orderCount: r.orderCount
+          status: r.orderStatus,
+          revenue: Math.round(parseFloat(r.revenue || 0) * 100) / 100,
+          orderCount: parseInt(r.orderCount)
         })),
         byCategory: revenueByCategory.map(r => ({
-          category: r._id || 'uncategorized',
-          revenue: Math.round(r.revenue * 100) / 100,
-          itemCount: r.itemCount
+          category: r.category || 'uncategorized',
+          revenue: Math.round(parseFloat(r.revenue || 0) * 100) / 100,
+          itemCount: parseInt(r.itemCount)
         }))
       }
     });
@@ -435,90 +461,86 @@ const getAdminRevenue = async (req, res) => {
 // @access  Private (Admin only)
 const getTopProducts = async (req, res) => {
   try {
-    const adminId = req.user._id;
+    const adminId = req.user.id;
     const { period = 'last_30_days', limit = 10 } = req.query;
 
     // Calculate date range based on period
-    let dateFilter = {};
+    let dateFilter = '';
     const now = new Date();
 
     switch (period) {
       case 'last_7_days':
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        dateFilter.createdAt = { $gte: sevenDaysAgo };
+        dateFilter = `AND o."createdAt" >= '${sevenDaysAgo.toISOString()}'`;
         break;
       case 'last_30_days':
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        dateFilter.createdAt = { $gte: thirtyDaysAgo };
+        dateFilter = `AND o."createdAt" >= '${thirtyDaysAgo.toISOString()}'`;
         break;
       case 'last_90_days':
         const ninetyDaysAgo = new Date();
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-        dateFilter.createdAt = { $gte: ninetyDaysAgo };
+        dateFilter = `AND o."createdAt" >= '${ninetyDaysAgo.toISOString()}'`;
         break;
       case 'this_month':
-        dateFilter.createdAt = {
-          $gte: new Date(now.getFullYear(), now.getMonth(), 1)
-        };
+        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        dateFilter = `AND o."createdAt" >= '${thisMonthStart.toISOString()}'`;
         break;
       case 'this_year':
-        dateFilter.createdAt = {
-          $gte: new Date(now.getFullYear(), 0, 1)
-        };
+        const thisYearStart = new Date(now.getFullYear(), 0, 1);
+        dateFilter = `AND o."createdAt" >= '${thisYearStart.toISOString()}'`;
         break;
       case 'all_time':
         // No date filter
+        dateFilter = '';
         break;
       default:
         // Default to last 30 days
         const defaultDate = new Date();
         defaultDate.setDate(defaultDate.getDate() - 30);
-        dateFilter.createdAt = { $gte: defaultDate };
+        dateFilter = `AND o."createdAt" >= '${defaultDate.toISOString()}'`;
     }
 
-    // Get top products by quantity sold
-    const topProducts = await Order.aggregate([
-      { 
-        $match: { 
-          'items.adminId': adminId,
-          orderStatus: { $in: ['delivered', 'completed'] },
-          ...dateFilter
-        } 
-      },
-      { $unwind: '$items' },
-      { $match: { 'items.adminId': adminId } },
-      {
-        $group: {
-          _id: '$items.productId',
-          productName: { $first: '$items.name' },
-          productImage: { $first: '$items.image' },
-          totalQuantitySold: { $sum: '$items.quantity' },
-          totalRevenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } },
-          orderCount: { $sum: 1 }
-        }
-      },
-      { $sort: { totalQuantitySold: -1 } },
-      { $limit: parseInt(limit) }
-    ]);
+    // Get top products by quantity sold using raw SQL
+    const topProducts = await sequelize.query(`
+      SELECT 
+        item->>'productId' AS "productId",
+        item->>'name' AS "productName",
+        item->>'image' AS "productImage",
+        SUM((item->>'quantity')::integer) AS "totalQuantitySold",
+        SUM((item->>'price')::numeric * (item->>'quantity')::numeric) AS "totalRevenue",
+        COUNT(DISTINCT o.id) AS "orderCount"
+      FROM "Orders" o,
+      jsonb_array_elements(o.items) AS item
+      WHERE (item->>'adminId')::uuid = :adminId
+        AND o."orderStatus" IN ('delivered', 'completed')
+        ${dateFilter}
+      GROUP BY item->>'productId', item->>'name', item->>'image'
+      ORDER BY "totalQuantitySold" DESC
+      LIMIT :limit
+    `, {
+      replacements: { adminId, limit: parseInt(limit) },
+      type: sequelize.QueryTypes.SELECT
+    });
 
     // Enrich with product details (ratings, discount, stock)
     const enrichedProducts = await Promise.all(
       topProducts.map(async (item) => {
-        const product = await Product.findById(item._id)
-          .select('ratings discount stock category')
-          .lean();
+        const product = await Product.findByPk(item.productId, {
+          attributes: ['ratingsAverage', 'ratingsCount', 'discount', 'stock', 'category']
+        });
         
         return {
-          productId: item._id,
+          productId: item.productId,
           productName: item.productName,
           productImage: item.productImage,
-          totalQuantitySold: item.totalQuantitySold,
-          totalRevenue: Math.round(item.totalRevenue * 100) / 100,
-          orderCount: item.orderCount,
-          averageRating: product?.ratings?.average || 0,
-          reviewCount: product?.ratings?.count || 0,
+          totalQuantitySold: parseInt(item.totalQuantitySold),
+          totalRevenue: Math.round(parseFloat(item.totalRevenue) * 100) / 100,
+          orderCount: parseInt(item.orderCount),
+          averageRating: product?.ratingsAverage || 0,
+          reviewCount: product?.ratingsCount || 0,
           discount: product?.discount || 0,
           currentStock: product?.stock || 0,
           category: product?.category || 'uncategorized'
@@ -550,15 +572,16 @@ const getTopProducts = async (req, res) => {
 // @access  Private (Admin only)
 const getRecentReviews = async (req, res) => {
   try {
-    const adminId = req.user._id;
+    const adminId = req.user.id;
     const { limit = 7 } = req.query;
 
     // Get products for this admin
-    const adminProducts = await Product.find({ adminId })
-      .select('_id')
-      .lean();
+    const adminProducts = await Product.findAll({
+      where: { adminId },
+      attributes: ['id']
+    });
     
-    const productIds = adminProducts.map(p => p._id);
+    const productIds = adminProducts.map(p => p.id);
 
     if (productIds.length === 0) {
       return res.json({
@@ -571,27 +594,41 @@ const getRecentReviews = async (req, res) => {
     }
 
     // Get recent feedback for admin's products
-    const reviews = await Feedback.find({
-      productId: { $in: productIds },
-      status: 'approved'
-    })
-      .populate('userId', 'name')
-      .populate('productId', 'name images category')
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .lean();
+    const reviews = await Feedback.findAll({
+      where: {
+        productId: productIds,
+        status: 'approved'
+      },
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['name']
+        },
+        {
+          model: Product,
+          as: 'product',
+          attributes: ['name', 'images', 'category']
+        }
+      ],
+      order: [['createdAt', 'DESC']],
+      limit: parseInt(limit)
+    });
 
     // Format reviews
-    const formattedReviews = reviews.map(review => ({
-      id: review._id,
-      productName: review.productId?.name || 'Unknown Product',
-      productImage: review.productId?.images?.[0] || null,
-      productCategory: review.productId?.category || 'uncategorized',
-      customerName: review.userId?.name || 'Anonymous',
-      rating: review.rating,
-      comment: review.comment,
-      createdAt: review.createdAt
-    }));
+    const formattedReviews = reviews.map(review => {
+      const reviewData = review.get({ plain: true });
+      return {
+        id: reviewData.id,
+        productName: reviewData.product?.name || 'Unknown Product',
+        productImage: reviewData.product?.images?.[0] || null,
+        productCategory: reviewData.product?.category || 'uncategorized',
+        customerName: reviewData.user?.name || 'Anonymous',
+        rating: reviewData.rating,
+        comment: reviewData.comment,
+        createdAt: reviewData.createdAt
+      };
+    });
 
     res.json({
       success: true,
@@ -616,47 +653,63 @@ const getRecentReviews = async (req, res) => {
 // @access  Private (Admin only)
 const getSimplifiedDashboard = async (req, res) => {
   try {
-    const adminId = req.user._id;
+    const adminId = req.user.id;
 
     // Get admin details with promo code
-    const admin = await Admin.findById(adminId)
-      .select('name email adminCode isActive earnings commission')
-      .lean();
+    const admin = await Admin.findByPk(adminId, {
+      attributes: ['name', 'email', 'adminCode', 'isActive', 'earningsTotal', 'commissionTotalDue']
+    });
 
-    // Get recent orders (simplified - only product info)
-    const recentOrders = await Order.find({
-      'items.adminId': adminId
-    })
-      .sort({ createdAt: -1 })
-      .limit(10)
-      .lean();
+    // Get recent orders (simplified - only product info) using raw SQL
+    const recentOrders = await sequelize.query(`
+      SELECT 
+        o.id AS "orderId",
+        o."orderStatus",
+        o."createdAt",
+        item->>'name' AS "productName",
+        item->>'image' AS "productImage",
+        (item->>'quantity')::integer AS quantity,
+        (item->>'price')::numeric AS price
+      FROM "Orders" o,
+      jsonb_array_elements(o.items) AS item
+      WHERE (item->>'adminId')::uuid = :adminId
+      ORDER BY o."createdAt" DESC
+      LIMIT 10
+    `, {
+      replacements: { adminId },
+      type: sequelize.QueryTypes.SELECT
+    });
 
     // Format recent orders to show only relevant product data
-    const formattedOrders = recentOrders.map(order => {
-      // Filter items to only show admin's products
-      const adminItems = order.items.filter(item => 
-        item.adminId.toString() === adminId.toString()
-      );
-
-      return adminItems.map(item => ({
-        productName: item.name,
-        productImage: item.image,
-        quantity: item.quantity,
-        totalAmount: item.price * item.quantity,
-        status: order.orderStatus,
-        orderDate: order.createdAt
-      }));
-    }).flat().slice(0, 10); // Flatten and take first 10
+    const formattedOrders = recentOrders.map(order => ({
+      productName: order.productName,
+      productImage: order.productImage,
+      quantity: order.quantity,
+      totalAmount: parseFloat(order.price) * order.quantity,
+      status: order.orderStatus,
+      orderDate: order.createdAt
+    }));
 
     // Get quick stats
+    const totalProducts = await Product.count({ where: { adminId } });
+    
+    // Count active orders using raw SQL
+    const activeOrdersResult = await sequelize.query(`
+      SELECT COUNT(DISTINCT o.id) as count
+      FROM "Orders" o,
+      jsonb_array_elements(o.items) AS item
+      WHERE (item->>'adminId')::uuid = :adminId
+        AND o."orderStatus" IN ('pending', 'confirmed', 'processing', 'shipped')
+    `, {
+      replacements: { adminId },
+      type: sequelize.QueryTypes.SELECT
+    });
+
     const stats = {
-      totalProducts: await Product.countDocuments({ adminId }),
-      activeOrders: await Order.countDocuments({
-        'items.adminId': adminId,
-        orderStatus: { $in: ['pending', 'confirmed', 'processing', 'shipped'] }
-      }),
-      totalRevenue: admin.earnings?.total || 0,
-      pendingCommission: admin.commission?.totalDue || 0
+      totalProducts,
+      activeOrders: parseInt(activeOrdersResult[0]?.count || 0),
+      totalRevenue: admin.earningsTotal || 0,
+      pendingCommission: admin.commissionTotalDue || 0
     };
 
     res.json({

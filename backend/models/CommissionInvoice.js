@@ -1,64 +1,87 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/database');
 
-const commissionInvoiceSchema = new mongoose.Schema({
+const CommissionInvoice = sequelize.define('CommissionInvoice', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
   adminId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Admin',
-    required: true,
-    index: true
+    type: DataTypes.UUID,
+    allowNull: false,
+    references: {
+      model: 'admins',
+      key: 'id'
+    }
   },
   amount: {
-    type: Number,
-    required: true,
-    min: 0
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    validate: {
+      min: { args: [0], msg: 'Amount cannot be negative' }
+    }
   },
   period: {
-    type: String, // Format: 'YYYY-MM' (e.g., '2024-01')
-    required: true,
-    index: true
+    type: DataTypes.STRING(10),
+    allowNull: false
   },
   dueDate: {
-    type: Date,
-    required: true,
-    index: true
+    type: DataTypes.DATE,
+    allowNull: false
   },
   status: {
-    type: String,
-    enum: ['unpaid', 'paid', 'overdue'],
-    default: 'unpaid',
-    index: true
+    type: DataTypes.ENUM('unpaid', 'paid', 'overdue'),
+    defaultValue: 'unpaid'
   },
   paidAt: {
-    type: Date
+    type: DataTypes.DATE,
+    allowNull: true
   },
   paymentMethod: {
-    type: String,
-    enum: ['cash', 'stripe', 'bank_transfer'],
+    type: DataTypes.ENUM('cash', 'stripe', 'bank_transfer'),
+    allowNull: true
   },
   stripeTransactionId: {
-    type: String
+    type: DataTypes.STRING(255),
+    allowNull: true
   },
   notes: {
-    type: String
+    type: DataTypes.TEXT,
+    allowNull: true
   },
-  // Sales breakdown for the period
-  salesBreakdown: {
-    totalSales: { type: Number, default: 0 },
-    commissionableSales: { type: Number, default: 0 }, // Sales above threshold
-    commissionRate: { type: Number, default: 10 }, // Percentage
-    numberOfOrders: { type: Number, default: 0 }
+  totalSales: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0
+  },
+  commissionableSales: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0
+  },
+  commissionRate: {
+    type: DataTypes.DECIMAL(5, 2),
+    defaultValue: 10
+  },
+  numberOfOrders: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
   }
 }, {
-  timestamps: true
+  tableName: 'commission_invoices',
+  timestamps: true,
+  indexes: [
+    { fields: ['adminId'] },
+    { fields: ['period'] },
+    { fields: ['dueDate'] },
+    { fields: ['status'] },
+    { fields: ['adminId', 'period'], unique: true },
+    { fields: ['status', 'dueDate'] },
+    { fields: ['createdAt'] }
+  ]
 });
 
-// Indexes for efficient queries
-commissionInvoiceSchema.index({ adminId: 1, period: 1 }, { unique: true }); // One invoice per admin per period
-commissionInvoiceSchema.index({ status: 1, dueDate: 1 }); // For overdue checks
-commissionInvoiceSchema.index({ createdAt: -1 }); // For recent invoices
-
-// Method to mark invoice as overdue
-commissionInvoiceSchema.methods.markAsOverdue = async function() {
+// Instance method to mark invoice as overdue
+CommissionInvoice.prototype.markAsOverdue = async function() {
   if (this.status === 'unpaid' && new Date() > this.dueDate) {
     this.status = 'overdue';
     await this.save();
@@ -68,21 +91,33 @@ commissionInvoiceSchema.methods.markAsOverdue = async function() {
 };
 
 // Static method to find overdue invoices
-commissionInvoiceSchema.statics.findOverdueInvoices = function() {
-  return this.find({
-    status: 'unpaid',
-    dueDate: { $lt: new Date() }
-  }).populate('adminId', 'name email phone shopName');
+CommissionInvoice.findOverdueInvoices = function() {
+  const { Op } = require('sequelize');
+  const Admin = require('./Admin');
+  
+  return this.findAll({
+    where: {
+      status: 'unpaid',
+      dueDate: { [Op.lt]: new Date() }
+    },
+    include: [{
+      model: Admin,
+      attributes: ['name', 'email', 'phone', 'shopName']
+    }]
+  });
 };
 
 // Static method to get unpaid invoices by admin
-commissionInvoiceSchema.statics.getUnpaidByAdmin = function(adminId) {
-  return this.find({
-    adminId,
-    status: { $in: ['unpaid', 'overdue'] }
-  }).sort({ createdAt: -1 });
+CommissionInvoice.getUnpaidByAdmin = function(adminId) {
+  const { Op } = require('sequelize');
+  
+  return this.findAll({
+    where: {
+      adminId,
+      status: { [Op.in]: ['unpaid', 'overdue'] }
+    },
+    order: [['createdAt', 'DESC']]
+  });
 };
-
-const CommissionInvoice = mongoose.model('CommissionInvoice', commissionInvoiceSchema);
 
 module.exports = CommissionInvoice;

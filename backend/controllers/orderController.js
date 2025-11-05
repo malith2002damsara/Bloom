@@ -1,8 +1,7 @@
-const Order = require('../models/Order');
-const Product = require('../models/Product');
-const Feedback = require('../models/Feedback');
+const { Order, Product, Feedback } = require('../models');
 const { validationResult } = require('express-validator');
 const { createOrderNotification } = require('./notificationController');
+const { Op } = require('sequelize');
 
 // @desc    Create new order
 // @route   POST /api/orders
@@ -10,7 +9,7 @@ const { createOrderNotification } = require('./notificationController');
 const createOrder = async (req, res) => {
   try {
     console.log('=== CREATE ORDER REQUEST ===');
-    console.log('User ID:', req.user?._id);
+    console.log('User ID:', req.user?.id);
     console.log('Request body:', JSON.stringify(req.body, null, 2));
     
     const errors = validationResult(req);
@@ -27,7 +26,7 @@ const createOrder = async (req, res) => {
 
     // Fetch product details to get adminId for each item
     const enrichedItems = await Promise.all(items.map(async (item) => {
-      const product = await Product.findById(item.productId);
+      const product = await Product.findByPk(item.productId);
       
       if (!product) {
         throw new Error(`Product ${item.productId} not found`);
@@ -35,7 +34,7 @@ const createOrder = async (req, res) => {
       
       // Verify the product's admin is active
       const Admin = require('../models/Admin');
-      const admin = await Admin.findById(product.adminId);
+      const admin = await Admin.findByPk(product.adminId);
       
       if (!admin || !admin.isActive) {
         throw new Error(`Product ${item.productId} is no longer available`);
@@ -52,8 +51,8 @@ const createOrder = async (req, res) => {
     const estimatedDelivery = new Date();
     estimatedDelivery.setDate(estimatedDelivery.getDate() + 7);
 
-    const order = new Order({
-      userId: req.user._id,
+    const order = await Order.create({
+      userId: req.user.id,
       items: enrichedItems,
       customerInfo,
       paymentMethod: paymentMethod || 'cod',
@@ -65,9 +64,7 @@ const createOrder = async (req, res) => {
       estimatedDelivery
     });
 
-    console.log('Order object before save:', JSON.stringify(order, null, 2));
-    await order.save();
-    console.log('Order saved successfully:', order._id);
+    console.log('Order saved successfully:', order.id);
 
     // Create notifications for admins whose products are in this order
     await createOrderNotification(order);
@@ -96,10 +93,10 @@ const createOrder = async (req, res) => {
 const getUserOrders = async (req, res) => {
   try {
     console.log('=== GET USER ORDERS REQUEST (OPTIMIZED) ===');
-    console.log('Authenticated User ID:', req.user?._id);
+    console.log('Authenticated User ID:', req.user?.id);
     
     // Security check: Ensure user is authenticated
-    if (!req.user || !req.user._id) {
+    if (!req.user || !req.user.id) {
       return res.status(401).json({
         success: false,
         message: 'User not authenticated'
@@ -116,52 +113,50 @@ const getUserOrders = async (req, res) => {
     const sortBy = req.query.sortBy || 'newest'; // newest, oldest, amount-high, amount-low
     const search = req.query.search ? req.query.search.trim() : '';
 
-    // Build optimized query
-    const query = { userId: req.user._id };
+    // Build optimized query - PostgreSQL/Sequelize
+    const where = { userId: req.user.id };
     
     // Add status filter if provided
     if (status && status !== 'all') {
-      query.orderStatus = status;
+      where.orderStatus = status;
     }
     
     // Add search filter (search in order number or customer name)
     if (search) {
-      query.$or = [
-        { orderNumber: { $regex: search, $options: 'i' } },
-        { 'customerInfo.name': { $regex: search, $options: 'i' } }
+      where[Op.or] = [
+        { orderNumber: { [Op.iLike]: `%${search}%` } },
+        { 'customerInfo.name': { [Op.iLike]: `%${search}%` } }
       ];
     }
     
-    console.log('Optimized query:', JSON.stringify(query));
+    console.log('Optimized query:', JSON.stringify(where));
 
-    // Determine sort order
-    let sortOrder = { createdAt: -1 }; // Default: newest first
+    // Determine sort order - PostgreSQL/Sequelize
+    let order = [['createdAt', 'DESC']]; // Default: newest first
     switch (sortBy) {
       case 'oldest':
-        sortOrder = { createdAt: 1 };
+        order = [['createdAt', 'ASC']];
         break;
       case 'amount-high':
-        sortOrder = { total: -1, createdAt: -1 };
+        order = [['total', 'DESC']];
         break;
       case 'amount-low':
-        sortOrder = { total: 1, createdAt: -1 };
+        order = [['total', 'ASC']];
         break;
       default:
-        sortOrder = { createdAt: -1 };
+        order = [['createdAt', 'DESC']];
     }
 
-    // Execute optimized query with parallel execution
-    // Using lean() for 2-3x faster queries
-    // Selecting only essential fields to reduce data transfer by ~60%
+    // Execute optimized query with parallel execution - PostgreSQL/Sequelize
     const [orders, total] = await Promise.all([
-      Order.find(query)
-        .select('orderNumber items.productId items.name items.price items.quantity items.image customerInfo.name customerInfo.address customerInfo.city orderStatus paymentMethod paymentStatus total createdAt estimatedDelivery trackingNumber')
-        .sort(sortOrder)
-        .skip(skip)
-        .limit(limit)
-        .lean() // Returns plain JS objects - much faster than Mongoose documents
-        .exec(),
-      Order.countDocuments(query).exec()
+      Order.findAll({
+        where,
+        attributes: ['id', 'orderNumber', 'items', 'customerInfo', 'orderStatus', 'paymentMethod', 'paymentStatus', 'total', 'createdAt', 'estimatedDelivery', 'trackingNumber'],
+        order,
+        offset: skip,
+        limit: limit
+      }),
+      Order.count({ where })
     ]);
 
     console.log(`✅ Retrieved ${orders.length} orders in optimized query`);
@@ -170,11 +165,14 @@ const getUserOrders = async (req, res) => {
     // This prevents duplicate feedback submissions
     for (const order of orders) {
       if (order.orderStatus === 'delivered' && order.items && order.items.length > 0) {
-        // Get all feedback for this user and order
-        const feedbacks = await Feedback.find({
-          userId: req.user._id,
-          orderId: order._id
-        }).select('productId').lean();
+        // Get all feedback for this user and order - PostgreSQL/Sequelize
+        const feedbacks = await Feedback.findAll({
+          where: {
+            userId: req.user.id,
+            orderId: order.id
+          },
+          attributes: ['productId']
+        });
 
         // Create a Set of product IDs that have feedback
         const feedbackProductIds = new Set(
@@ -225,18 +223,18 @@ const getUserOrders = async (req, res) => {
 const getOrderById = async (req, res) => {
   try {
     console.log('=== GET ORDER BY ID REQUEST (OPTIMIZED) ===');
-    console.log('User ID:', req.user?._id);
+    console.log('User ID:', req.user?.id);
     console.log('Order ID:', req.params.id);
     
-    // Optimized query with only necessary fields
+    // Optimized query with only necessary fields - PostgreSQL/Sequelize
     // IMPORTANT: Only allow users to view their own orders
     const order = await Order.findOne({
-      _id: req.params.id,
-      userId: req.user._id
-    })
-    .select('orderNumber items customerInfo orderStatus paymentMethod paymentStatus subtotal tax shipping discount total createdAt estimatedDelivery trackingNumber notes')
-    .lean() // Use lean() for 2-3x faster queries
-    .exec();
+      where: {
+        id: req.params.id,
+        userId: req.user.id
+      },
+      attributes: ['id', 'orderNumber', 'items', 'customerInfo', 'orderStatus', 'paymentMethod', 'paymentStatus', 'subtotal', 'tax', 'shipping', 'discount', 'total', 'createdAt', 'estimatedDelivery', 'trackingNumber', 'notes']
+    });
 
     if (!order) {
       console.log('Order not found or unauthorized access attempt');
@@ -248,10 +246,13 @@ const getOrderById = async (req, res) => {
 
     // Check feedback status for each product if order is delivered
     if (order.orderStatus === 'delivered' && order.items && order.items.length > 0) {
-      const feedbacks = await Feedback.find({
-        userId: req.user._id,
-        orderId: order._id
-      }).select('productId').lean();
+      const feedbacks = await Feedback.findAll({
+        where: {
+          userId: req.user.id,
+          orderId: order.id
+        },
+        attributes: ['productId']
+      });
 
       const feedbackProductIds = new Set(
         feedbacks.map(f => f.productId.toString())
@@ -292,8 +293,10 @@ const getOrderById = async (req, res) => {
 const cancelOrder = async (req, res) => {
   try {
     const order = await Order.findOne({
-      _id: req.params.id,
-      userId: req.user._id
+      where: {
+        id: req.params.id,
+        userId: req.user.id
+      }
     });
 
     if (!order) {
@@ -341,39 +344,46 @@ const getAllOrders = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
     const status = req.query.status;
-    const adminId = req.user._id;
+    const adminId = req.user.id;
     const isSuperAdmin = req.user.role === 'superadmin';
 
-    // Build query
-    let query = {};
+    // Build where clause for PostgreSQL/Sequelize
+    let where = {};
     
     if (status) {
-      query.orderStatus = status;
+      where.orderStatus = status;
     }
 
     // If admin (not superadmin), filter to show only orders containing their products
+    // Using PostgreSQL JSONB query for items array
     if (!isSuperAdmin) {
-      query['items.adminId'] = adminId;
+      where.items = {
+        [Op.contains]: [{ adminId: adminId }]
+      };
     }
 
-    console.log('getAllOrders query:', JSON.stringify(query));
+    console.log('getAllOrders where:', JSON.stringify(where));
 
-    const orders = await Order.find(query)
-      .populate('userId', 'name email phone')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
-
-    const total = await Order.countDocuments(query);
+    const { rows: orders, count: total } = await Order.findAndCountAll({
+      where,
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['name', 'email', 'phone']
+      }],
+      order: [['createdAt', 'DESC']],
+      offset: skip,
+      limit: limit
+    });
 
     // If admin, filter items in each order to show only their products
     const filteredOrders = orders.map(order => {
-      const orderObj = order.toObject();
+      const orderObj = order.toJSON();
       
       if (!isSuperAdmin) {
         // Filter items to show only this admin's products
         orderObj.items = orderObj.items.filter(item => 
-          item.adminId.toString() === adminId.toString()
+          item.adminId && item.adminId.toString() === adminId.toString()
         );
         
         // Recalculate order total based on filtered items
@@ -416,10 +426,10 @@ const getAllOrders = async (req, res) => {
 const updateOrderStatus = async (req, res) => {
   try {
     const { orderStatus, trackingNumber } = req.body;
-    const adminId = req.user._id;
+    const adminId = req.user.id;
     const isSuperAdmin = req.user.role === 'superadmin';
 
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findByPk(req.params.id);
 
     if (!order) {
       return res.status(404).json({

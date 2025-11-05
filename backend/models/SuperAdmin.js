@@ -2,20 +2,20 @@ const { DataTypes } = require('sequelize');
 const bcrypt = require('bcryptjs');
 const { sequelize } = require('../config/database');
 
-const User = sequelize.define('User', {
+const SuperAdmin = sequelize.define('SuperAdmin', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true
   },
   name: {
-    type: DataTypes.STRING(50),
+    type: DataTypes.STRING(100),
     allowNull: false,
     validate: {
       notEmpty: { msg: 'Name is required' },
       len: {
-        args: [2, 50],
-        msg: 'Name must be between 2 and 50 characters'
+        args: [2, 100],
+        msg: 'Name must be between 2 and 100 characters'
       }
     }
   },
@@ -55,29 +55,9 @@ const User = sequelize.define('User', {
     }
   },
   role: {
-    type: DataTypes.ENUM('user', 'admin', 'superadmin'),
-    defaultValue: 'user',
-    allowNull: false
-  },
-  street: {
-    type: DataTypes.STRING(255),
-    defaultValue: ''
-  },
-  city: {
-    type: DataTypes.STRING(100),
-    defaultValue: ''
-  },
-  state: {
-    type: DataTypes.STRING(100),
-    defaultValue: ''
-  },
-  zipCode: {
     type: DataTypes.STRING(20),
-    defaultValue: ''
-  },
-  country: {
-    type: DataTypes.STRING(100),
-    defaultValue: ''
+    defaultValue: 'superadmin',
+    allowNull: false
   },
   isActive: {
     type: DataTypes.BOOLEAN,
@@ -90,25 +70,37 @@ const User = sequelize.define('User', {
   passwordChangedAt: {
     type: DataTypes.DATE,
     allowNull: true
+  },
+  permissions: {
+    type: DataTypes.JSONB,
+    defaultValue: {
+      manageAdmins: true,
+      manageUsers: true,
+      manageProducts: true,
+      manageOrders: true,
+      viewReports: true,
+      manageCommissions: true,
+      systemSettings: true
+    }
   }
 }, {
-  tableName: 'users',
+  tableName: 'super_admins',
   timestamps: true,
   indexes: [
     { fields: ['email'] },
     { fields: ['phone'] },
-    { fields: ['role'] }
+    { fields: ['isActive'] }
   ],
   hooks: {
-    beforeSave: async (user) => {
+    beforeSave: async (superAdmin) => {
       // Hash password if it's modified
-      if (user.changed('password')) {
+      if (superAdmin.changed('password')) {
         const salt = await bcrypt.genSalt(10);
-        user.password = await bcrypt.hash(user.password, salt);
+        superAdmin.password = await bcrypt.hash(superAdmin.password, salt);
         
         // Set passwordChangedAt if password is being changed (not on creation)
-        if (!user.isNewRecord) {
-          user.passwordChangedAt = new Date(Date.now() - 1000);
+        if (!superAdmin.isNewRecord) {
+          superAdmin.passwordChangedAt = new Date(Date.now() - 1000);
         }
       }
     }
@@ -116,12 +108,12 @@ const User = sequelize.define('User', {
 });
 
 // Instance method to compare passwords
-User.prototype.comparePassword = async function(candidatePassword) {
+SuperAdmin.prototype.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
 // Instance method to check if password was changed after JWT was issued
-User.prototype.changedPasswordAfter = function(JWTTimestamp) {
+SuperAdmin.prototype.changedPasswordAfter = function(JWTTimestamp) {
   if (this.passwordChangedAt) {
     const changedTimestamp = parseInt(this.passwordChangedAt.getTime() / 1000, 10);
     return JWTTimestamp < changedTimestamp;
@@ -130,10 +122,10 @@ User.prototype.changedPasswordAfter = function(JWTTimestamp) {
 };
 
 // Remove password from JSON output
-User.prototype.toJSON = function() {
+SuperAdmin.prototype.toJSON = function() {
   const values = { ...this.get() };
   delete values.password;
   return values;
 };
 
-module.exports = User;
+module.exports = SuperAdmin;
