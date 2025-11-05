@@ -1,4 +1,14 @@
-const API_BASE_URL = `${import.meta.env.VITE_BACKEND_URL || 'https://bloombackend.vercel.app'}/api`;
+const normalizeBaseUrl = (value) => {
+  if (!value) return null;
+  return value.endsWith('/') ? value.slice(0, -1) : value;
+};
+
+const envBaseUrl = normalizeBaseUrl(import.meta.env.VITE_BACKEND_URL);
+const defaultBaseUrl = import.meta.env.DEV
+  ? 'http://localhost:5000'
+  : 'https://bloombackend.vercel.app';
+
+const API_BASE_URL = `${normalizeBaseUrl(envBaseUrl || defaultBaseUrl)}/api`;
 
 class AdminApiService {
   constructor() {
@@ -31,6 +41,7 @@ class AdminApiService {
     const url = `${this.baseURL}${endpoint}`;
     const config = {
       headers: this.getHeaders(options.auth !== false),
+      credentials: 'include',
       ...options,
     };
 
@@ -193,6 +204,16 @@ class AdminApiService {
     return this.request(`/admin/notifications/${notificationId}`, {
       method: 'DELETE',
     });
+  }
+
+  // Get base URL for direct API calls (like file uploads)
+  getBaseURL() {
+    return this.baseURL;
+  }
+
+  // Get backend URL without /api suffix (for file uploads)
+  getBackendURL() {
+    return this.baseURL.replace('/api', '');
   }
 }
 

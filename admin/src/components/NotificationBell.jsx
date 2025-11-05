@@ -49,7 +49,7 @@ const NotificationBell = () => {
       if (response.success) {
         setNotifications(prev => 
           prev.map(notif => 
-            notif._id === notificationId ? { ...notif, read: true } : notif
+            notif.id === notificationId ? { ...notif, read: true } : notif
           )
         );
         setUnreadCount(prev => Math.max(0, prev - 1));
@@ -80,7 +80,7 @@ const NotificationBell = () => {
     try {
       const response = await adminApi.deleteNotification(notificationId);
       if (response.success) {
-        setNotifications(prev => prev.filter(notif => notif._id !== notificationId));
+        setNotifications(prev => prev.filter(notif => notif.id !== notificationId));
         toast.success('Notification deleted');
       }
     } catch (error) {
@@ -189,7 +189,7 @@ const NotificationBell = () => {
               <div className="divide-y divide-gray-100">
                 {notifications.map((notification) => (
                   <div
-                    key={notification._id}
+                    key={notification.id}
                     className={`px-4 py-3 hover:bg-gray-50 transition-colors ${
                       !notification.read ? 'bg-blue-50/50' : ''
                     }`}
@@ -219,7 +219,7 @@ const NotificationBell = () => {
                           <div className="flex items-center space-x-1 ml-2 flex-shrink-0">
                             {!notification.read && (
                               <button
-                                onClick={() => markAsRead(notification._id)}
+                                onClick={() => markAsRead(notification.id)}
                                 className="text-blue-600 hover:text-blue-700 p-1"
                                 title="Mark as read"
                               >
@@ -227,7 +227,7 @@ const NotificationBell = () => {
                               </button>
                             )}
                             <button
-                              onClick={() => deleteNotification(notification._id)}
+                              onClick={() => deleteNotification(notification.id)}
                               className="text-red-600 hover:text-red-700 p-1"
                               title="Delete"
                             >

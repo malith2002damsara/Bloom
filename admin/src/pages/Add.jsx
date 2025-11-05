@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Upload, X, Plus, Loader, Store, Package } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useAdminAuth } from '../context/AdminAuthContext';
+import adminApi from '../utils/api';
 
 const Add = () => {
   const { admin } = useAdminAuth();
@@ -604,8 +605,8 @@ const Add = () => {
         xhr.onerror = () => reject(new Error('Network error occurred'));
         xhr.ontimeout = () => reject(new Error('Upload timeout'));
         
-        // Configure request
-        xhr.open('POST', `${import.meta.env.VITE_BACKEND_URL}/api/products`);
+        // Configure request - use the API service's backend URL
+        xhr.open('POST', `${adminApi.getBackendURL()}/api/products`);
         xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('adminToken')}`);
         xhr.timeout = 300000; // 5 minutes timeout
         

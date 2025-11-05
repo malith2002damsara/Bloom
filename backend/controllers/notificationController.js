@@ -1,5 +1,6 @@
 const Notification = require('../models/Notification');
 const Product = require('../models/Product');
+const { Op } = require('sequelize');
 
 // @desc    Get admin notifications
 // @route   GET /api/admin/notifications
@@ -9,14 +10,19 @@ const getNotifications = async (req, res) => {
     const adminId = req.user.id;
     const limit = parseInt(req.query.limit) || 20;
 
-    const notifications = await Notification.find({ adminId })
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .lean();
+    // Sequelize query
+    const notifications = await Notification.findAll({
+      where: { adminId },
+      order: [['createdAt', 'DESC']],
+      limit,
+      raw: true
+    });
 
     const unreadCount = await Notification.count({ 
-      adminId, 
-      read: false 
+      where: {
+        adminId, 
+        read: false
+      }
     });
 
     res.json({
@@ -45,11 +51,9 @@ const markNotificationRead = async (req, res) => {
     const adminId = req.user.id;
     const notificationId = req.params.id;
 
-    const notification = await Notification.findOneAndUpdate(
-      { _id: notificationId, adminId },
-      { read: true },
-      { new: true }
-    );
+    const notification = await Notification.findOne({
+      where: { id: notificationId, adminId }
+    });
 
     if (!notification) {
       return res.status(404).json({
@@ -57,6 +61,9 @@ const markNotificationRead = async (req, res) => {
         message: 'Notification not found'
       });
     }
+
+    notification.read = true;
+    await notification.save();
 
     res.json({
       success: true,
@@ -81,16 +88,21 @@ const markAllNotificationsRead = async (req, res) => {
   try {
     const adminId = req.user.id;
 
-    const result = await Notification.updateMany(
-      { adminId, read: false },
-      { read: true }
+    const [affectedCount] = await Notification.update(
+      { read: true },
+      { 
+        where: { 
+          adminId, 
+          read: false 
+        }
+      }
     );
 
     res.json({
       success: true,
       message: 'All notifications marked as read',
       data: { 
-        modifiedCount: result.modifiedCount 
+        modifiedCount: affectedCount
       }
     });
 
@@ -112,12 +124,14 @@ const deleteNotification = async (req, res) => {
     const adminId = req.user.id;
     const notificationId = req.params.id;
 
-    const notification = await Notification.findOneAndDelete({
-      _id: notificationId,
-      adminId
+    const deletedCount = await Notification.destroy({
+      where: {
+        id: notificationId,
+        adminId
+      }
     });
 
-    if (!notification) {
+    if (deletedCount === 0) {
       return res.status(404).json({
         success: false,
         message: 'Notification not found'
@@ -143,7 +157,7 @@ const deleteNotification = async (req, res) => {
 // @access  Internal
 const createNotification = async (adminId, type, title, message, orderId = null, productId = null) => {
   try {
-    const notification = new Notification({
+    const notification = await Notification.create({
       adminId,
       type,
       title,
@@ -152,7 +166,6 @@ const createNotification = async (adminId, type, title, message, orderId = null,
       productId
     });
 
-    await notification.save();
     return notification;
   } catch (error) {
     console.error('Create notification error:', error);
@@ -166,7 +179,10 @@ const createOrderNotification = async (order) => {
   try {
     // Get unique admin IDs from order items
     const productIds = order.items.map(item => item.productId);
-    const products = await Product.find({ _id: { $in: productIds } }).select('adminId name');
+    const products = await Product.findAll({ 
+      where: { id: { [Op.in]: productIds } },
+      attributes: ['adminId', 'name']
+    });
     
     // Group products by admin
     const adminProducts = {};
@@ -185,8 +201,8 @@ const createOrderNotification = async (order) => {
         adminId,
         'new_order',
         'New Order Received! 🎉',
-        `You have a new order (#${order.orderNumber || order._id.toString().slice(-6)}) for ${productNames.length} product(s): ${productNames.slice(0, 2).join(', ')}${productNames.length > 2 ? '...' : ''}`,
-        order._id
+        `You have a new order (#${order.orderNumber || order.id.toString().slice(-6)}) for ${productNames.length} product(s): ${productNames.slice(0, 2).join(', ')}${productNames.length > 2 ? '...' : ''}`,
+        order.id
       );
       if (notification) {
         notifications.push(notification);
