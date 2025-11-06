@@ -7,6 +7,7 @@ const SuperAdmin = require('./SuperAdmin');
 const Product = require('./Product');
 const Order = require('./Order');
 const Feedback = require('./Feedback');
+const ProductReview = require('./ProductReview');
 const Notification = require('./Notification');
 const CommissionInvoice = require('./CommissionInvoice');
 const CommissionPayment = require('./CommissionPayment');
@@ -44,6 +45,9 @@ Order.belongsTo(User, { as: 'user', foreignKey: 'userId' });
 User.hasMany(Feedback, { as: 'feedback', foreignKey: 'userId', onDelete: 'CASCADE' });
 Feedback.belongsTo(User, { as: 'user', foreignKey: 'userId' });
 
+User.hasMany(ProductReview, { as: 'reviews', foreignKey: 'userId', onDelete: 'CASCADE' });
+ProductReview.belongsTo(User, { as: 'user', foreignKey: 'userId' });
+
 User.hasMany(PlatformReport, { as: 'generatedReports', foreignKey: 'generatedBy', onDelete: 'SET NULL' });
 PlatformReport.belongsTo(User, { as: 'generator', foreignKey: 'generatedBy' });
 
@@ -51,12 +55,18 @@ PlatformReport.belongsTo(User, { as: 'generator', foreignKey: 'generatedBy' });
 Product.hasMany(Feedback, { as: 'feedback', foreignKey: 'productId', onDelete: 'CASCADE' });
 Feedback.belongsTo(Product, { as: 'product', foreignKey: 'productId' });
 
+Product.hasMany(ProductReview, { as: 'reviews', foreignKey: 'productId', onDelete: 'CASCADE' });
+ProductReview.belongsTo(Product, { as: 'product', foreignKey: 'productId' });
+
 Product.hasMany(Notification, { as: 'notifications', foreignKey: 'productId', onDelete: 'SET NULL' });
 Notification.belongsTo(Product, { as: 'product', foreignKey: 'productId' });
 
 // Order relationships
 Order.hasMany(Feedback, { as: 'feedback', foreignKey: 'orderId', onDelete: 'CASCADE' });
 Feedback.belongsTo(Order, { as: 'order', foreignKey: 'orderId' });
+
+Order.hasMany(ProductReview, { as: 'reviews', foreignKey: 'orderId', onDelete: 'CASCADE' });
+ProductReview.belongsTo(Order, { as: 'order', foreignKey: 'orderId' });
 
 Order.hasMany(Notification, { as: 'notifications', foreignKey: 'orderId', onDelete: 'SET NULL' });
 Notification.belongsTo(Order, { as: 'order', foreignKey: 'orderId' });
@@ -81,6 +91,7 @@ module.exports = {
   Product,
   Order,
   Feedback,
+  ProductReview,
   Notification,
   CommissionInvoice,
   CommissionPayment,

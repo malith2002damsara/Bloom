@@ -22,7 +22,7 @@ const Analytics = () => {
   const fetchTopProducts = async () => {
     try {
       setLoading(true);
-      const response = await adminApi.get(`/analytics/top-products?period=${timeRange}`);
+      const response = await adminApi.get(`/admin/analytics/top-products?period=${timeRange}`);
       
       if (response.success) {
         setTopProducts(response.data.products || []);

@@ -234,9 +234,11 @@ const ProductCard = ({ product }) => {
           />
           
           {/* Discount Badge */}
-          {product.discount && product.discount > 0 && (
-            <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded-md shadow-lg z-10">
-              <span className="text-xs font-bold">-{product.discount}% OFF</span>
+          {product.oldPrice > 0 && product.price < product.oldPrice && (
+            <div className="absolute top-2 left-2 bg-gradient-to-r from-red-500 to-pink-500 text-white px-2 py-1 rounded-md shadow-lg z-10">
+              <span className="text-xs font-bold">
+                {product.discount?.toFixed(0) || Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100)}% OFF
+              </span>
             </div>
           )}
           
@@ -252,15 +254,27 @@ const ProductCard = ({ product }) => {
           <h3 className="font-medium text-sm mb-1 line-clamp-2 leading-tight">{product.name}</h3>
           
           {/* Price with Discount */}
-          <div className="flex items-center space-x-2 mb-2">
-            {product.discount && product.discount > 0 ? (
+          <div className="mb-2">
+            {product.oldPrice > 0 && product.price < product.oldPrice ? (
               <>
-                <p className="text-purple-600 font-semibold text-sm">
-                  Rs. {(product.discountedPrice || product.price || 0).toFixed(2)}
-                </p>
-                <p className="text-gray-400 text-xs line-through">
-                  Rs. {(product.price || 0).toFixed(2)}
-                </p>
+                {/* Discounted Price Display */}
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-gray-400 text-xs line-through">
+                    Rs. {parseFloat(product.oldPrice).toFixed(2)}
+                  </p>
+                  <p className="text-purple-600 font-bold text-base">
+                    Rs. {parseFloat(product.price).toFixed(2)}
+                  </p>
+                </div>
+                {/* Discount Badge */}
+                <div className="inline-flex items-center gap-1 px-2 py-1 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-md">
+                  <span className="text-xs font-bold text-green-800">
+                    💰 {product.discount?.toFixed(2) || Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100)}% OFF
+                  </span>
+                  <span className="text-xs text-green-700">
+                    • Save Rs. {(parseFloat(product.oldPrice) - parseFloat(product.price)).toFixed(2)}
+                  </span>
+                </div>
               </>
             ) : (
               <p className="text-purple-600 font-semibold text-sm">
@@ -747,28 +761,46 @@ const ProductCard = ({ product }) => {
                       <div className="space-y-4">
                         {/* Price Section */}
                         <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-100">
-                          <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <span className="text-2xl font-bold text-purple-600">Rs. {getTotalPrice().toFixed(2)}</span>
-                            {product.discount && product.discount > 0 ? (
-                              <>
-                                <span className="text-sm text-gray-500 line-through">
-                                  Rs. {((product.price || 0) * quantity).toFixed(2)}
+                          {/* Old Price and New Price Display */}
+                          {product.oldPrice > 0 && product.price < product.oldPrice ? (
+                            <>
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-sm text-gray-500">Old Price:</span>
+                                <span className="text-lg text-gray-400 line-through">
+                                  Rs. {parseFloat(product.oldPrice).toFixed(2)}
                                 </span>
-                                <span className="bg-red-100 text-red-800 text-xs font-medium px-2 py-1 rounded-full">
-                                  Save {product.discount}%
+                              </div>
+                              <div className="flex items-center gap-2 mb-3">
+                                <span className="text-sm font-medium text-gray-700">New Price:</span>
+                                <span className="text-3xl font-bold text-purple-600">
+                                  Rs. {(getCurrentPrice() * quantity).toFixed(2)}
                                 </span>
-                              </>
-                            ) : (
-                              <>
+                              </div>
+                              {/* Discount Info */}
+                              <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-bold text-green-800">
+                                    💰 Discount: {product.discount?.toFixed(2) || Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100)}% OFF
+                                  </span>
+                                  <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-1 rounded-full">
+                                    Save Rs. {((parseFloat(product.oldPrice) - parseFloat(product.price)) * quantity).toFixed(2)}
+                                  </span>
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex flex-wrap items-center gap-2 mb-2">
+                                <span className="text-2xl font-bold text-purple-600">Rs. {getTotalPrice().toFixed(2)}</span>
                                 <span className="text-sm text-gray-500 line-through">Rs. {(getTotalPrice() * 1.2).toFixed(2)}</span>
                                 <span className="bg-red-100 text-red-800 text-xs font-medium px-2 py-1 rounded-full">
                                   Save 20%
                                 </span>
-                              </>
-                            )}
-                          </div>
+                              </div>
+                            </>
+                          )}
                           {quantity > 1 && (
-                            <p className="text-xs text-gray-600">
+                            <p className="text-xs text-gray-600 mt-2">
                               Rs. {getCurrentPrice().toFixed(2)} each
                             </p>
                           )}

@@ -549,16 +549,12 @@ const createProduct = async (req, res) => {
       category,
       occasion: occasion || '',
       images: imagePaths,
-      dimensions: {
-        height: parsedDimensions.height ? parseFloat(parsedDimensions.height) : 0,
-        width: parsedDimensions.width ? parseFloat(parsedDimensions.width) : 0,
-        depth: parsedDimensions.depth ? parseFloat(parsedDimensions.depth) : 0
-      },
+      dimensionsHeight: parsedDimensions.height ? parseFloat(parsedDimensions.height) : 0,
+      dimensionsWidth: parsedDimensions.width ? parseFloat(parsedDimensions.width) : 0,
+      dimensionsDepth: parsedDimensions.depth ? parseFloat(parsedDimensions.depth) : 0,
       numberOfFlowers: totalFlowers,
-      seller: {
-        name: parsedSeller.name.trim(),
-        contact: parsedSeller.contact.trim()
-      },
+      sellerName: parsedSeller.name.trim(),
+      sellerContact: parsedSeller.contact.trim(),
       adminId: adminId,
       inStock: true,
       stock: 10,
@@ -789,19 +785,15 @@ const updateProduct = async (req, res) => {
 
     // Update dimensions
     if (parsedDimensions && Object.keys(parsedDimensions).length > 0) {
-      updateData.dimensions = {
-        height: parsedDimensions.height ? parseFloat(parsedDimensions.height) : existingProduct.dimensions?.height || 0,
-        width: parsedDimensions.width ? parseFloat(parsedDimensions.width) : existingProduct.dimensions?.width || 0,
-        depth: parsedDimensions.depth ? parseFloat(parsedDimensions.depth) : existingProduct.dimensions?.depth || 0
-      };
+      updateData.dimensionsHeight = parsedDimensions.height ? parseFloat(parsedDimensions.height) : existingProduct.dimensionsHeight || 0;
+      updateData.dimensionsWidth = parsedDimensions.width ? parseFloat(parsedDimensions.width) : existingProduct.dimensionsWidth || 0;
+      updateData.dimensionsDepth = parsedDimensions.depth ? parseFloat(parsedDimensions.depth) : existingProduct.dimensionsDepth || 0;
     }
 
     // Update seller
     if (parsedSeller && Object.keys(parsedSeller).length > 0) {
-      updateData.seller = {
-        name: parsedSeller.name ? parsedSeller.name.trim() : existingProduct.seller?.name,
-        contact: parsedSeller.contact ? parsedSeller.contact.trim() : existingProduct.seller?.contact
-      };
+      updateData.sellerName = parsedSeller.name ? parsedSeller.name.trim() : existingProduct.sellerName;
+      updateData.sellerContact = parsedSeller.contact ? parsedSeller.contact.trim() : existingProduct.sellerContact;
     }
 
     // Category-specific updates

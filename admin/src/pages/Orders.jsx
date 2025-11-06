@@ -28,7 +28,7 @@ const Orders = () => {
     const params = new URLSearchParams(window.location.search);
     const highlightId = params.get('highlight');
     if (highlightId && orders.length > 0) {
-      const match = orders.find(o => o._id === highlightId);
+      const match = orders.find(o => (o.id || o._id) === highlightId);
       if (match) {
         setSelectedOrder(match);
         setShowModal(true);
@@ -73,17 +73,21 @@ const Orders = () => {
 
       const data = await response.json();
 
-      if (data.success) {
-        setOrders(prev => prev.map(order => 
-          order._id === orderId ? { ...order, orderStatus: newStatus } : order
-        ));
-        if (selectedOrder && selectedOrder._id === orderId) {
-          setSelectedOrder({ ...selectedOrder, orderStatus: newStatus });
-        }
-        toast.success('Order status updated successfully');
-      } else {
+      if (!response.ok || !data.success) {
         throw new Error(data.message || 'Failed to update order status');
       }
+
+      // Update orders list
+      setOrders(prev => prev.map(order => 
+        (order.id || order._id) === orderId ? { ...order, orderStatus: newStatus } : order
+      ));
+      
+      // Update selected order if it's the same
+      if (selectedOrder && (selectedOrder.id || selectedOrder._id) === orderId) {
+        setSelectedOrder({ ...selectedOrder, orderStatus: newStatus });
+      }
+      
+      toast.success('Order status updated successfully');
     } catch (error) {
       console.error('Error updating order status:', error);
       toast.error(error.message || 'Failed to update order status');
@@ -110,7 +114,7 @@ const Orders = () => {
     const matchesSearch = order.customerInfo?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          order.customerInfo?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          order.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order._id.toLowerCase().includes(searchTerm.toLowerCase());
+                         (order.id || order._id)?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = statusFilter === 'all' || order.orderStatus === statusFilter;
     
@@ -201,7 +205,7 @@ const Orders = () => {
               <h3 className="font-semibold text-gray-900 mb-4">Order Items</h3>
               <div className="space-y-4">
                 {order.items?.map((item, index) => (
-                  <div key={index} className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg">
+                  <div key={item.productId || item.id || index} className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg">
                     <img
                       src={item.image || '/api/placeholder/64/64'}
                       alt={item.name}
@@ -211,6 +215,15 @@ const Orders = () => {
                       <h4 className="font-medium text-gray-900">{item.name}</h4>
                       <p className="text-gray-600">Quantity: {item.quantity}</p>
                       <p className="text-gray-900 font-semibold">{formatCurrency(item.price)}</p>
+                      {item.customization && Object.keys(item.customization).length > 0 && (
+                        <div className="mt-2 text-xs text-gray-500">
+                          <p className="font-medium">Customization:</p>
+                          {item.customization.flowerType && <p>Flower: {item.customization.flowerType}</p>}
+                          {item.customization.flowerColor && <p>Color: {item.customization.flowerColor}</p>}
+                          {item.customization.bearSize && <p>Bear Size: {item.customization.bearSize}</p>}
+                          {item.customization.bearColor && <p>Bear Color: {item.customization.bearColor}</p>}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -220,7 +233,7 @@ const Orders = () => {
                 <h3 className="font-semibold text-gray-900 mb-2">Update Status</h3>
                 <select
                   value={order.orderStatus}
-                  onChange={(e) => updateOrderStatus(order._id, e.target.value)}
+                  onChange={(e) => updateOrderStatus(order.id || order._id, e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   {orderStatuses.slice(1).map(status => (
@@ -343,7 +356,7 @@ const Orders = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredOrders.map((order) => (
-                <tr key={order._id} className="hover:bg-gray-50">
+                <tr key={order.id || order._id} className="hover:bg-gray-50">
                  
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">{order.customerInfo?.name}</div>

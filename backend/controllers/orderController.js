@@ -1,7 +1,8 @@
-const { Order, Product, Feedback } = require('../models');
+const { Order, Product, Feedback, User } = require('../models');
 const { validationResult } = require('express-validator');
 const { createOrderNotification } = require('./notificationController');
 const { Op } = require('sequelize');
+const { sequelize } = require('../config/database');
 const Stripe = require('stripe');
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
@@ -423,42 +424,116 @@ const getAllOrders = async (req, res) => {
     const adminId = req.user.id;
     const isSuperAdmin = req.user.role === 'superadmin';
 
-    // Build where clause for PostgreSQL/Sequelize
+    // Build where clause for status filter
     let where = {};
     
     if (status) {
       where.orderStatus = status;
     }
 
-    // If admin (not superadmin), filter to show only orders containing their products
-    // Using PostgreSQL JSONB query for items array
-    if (!isSuperAdmin) {
-      where.items = {
-        [Op.contains]: [{ adminId: adminId }]
-      };
+    console.log('getAllOrders adminId:', adminId, 'isSuperAdmin:', isSuperAdmin);
+
+    let orders = [];
+    let total = 0;
+
+    if (isSuperAdmin) {
+      // SuperAdmin sees all orders
+      const result = await Order.findAndCountAll({
+        where,
+        include: [{
+          model: User,
+          as: 'user',
+          attributes: ['name', 'email', 'phone']
+        }],
+        order: [['createdAt', 'DESC']],
+        offset: skip,
+        limit: limit
+      });
+      orders = result.rows;
+      total = result.count;
+    } else {
+      // Admin sees only orders with their products using raw SQL
+      const statusFilter = status ? `AND o."orderStatus" = :status` : '';
+      
+      const ordersQuery = await sequelize.query(`
+        SELECT DISTINCT o.*, 
+          u.name as "user.name", 
+          u.email as "user.email", 
+          u.phone as "user.phone"
+        FROM orders o
+        LEFT JOIN users u ON o."userId" = u.id
+        WHERE EXISTS (
+          SELECT 1 FROM jsonb_array_elements(o.items) as item
+          WHERE (item->>'adminId')::uuid = :adminId
+        )
+        ${statusFilter}
+        ORDER BY o."createdAt" DESC
+        LIMIT :limit OFFSET :offset
+      `, {
+        replacements: { 
+          adminId, 
+          status: status || null,
+          limit, 
+          offset: skip 
+        },
+        type: sequelize.QueryTypes.SELECT
+      });
+
+      // Count total matching orders
+      const countQuery = await sequelize.query(`
+        SELECT COUNT(DISTINCT o.id) as count
+        FROM orders o
+        WHERE EXISTS (
+          SELECT 1 FROM jsonb_array_elements(o.items) as item
+          WHERE (item->>'adminId')::uuid = :adminId
+        )
+        ${statusFilter}
+      `, {
+        replacements: { 
+          adminId,
+          status: status || null
+        },
+        type: sequelize.QueryTypes.SELECT
+      });
+
+      orders = ordersQuery;
+      total = parseInt(countQuery[0]?.count || 0);
     }
 
-    console.log('getAllOrders where:', JSON.stringify(where));
-
-    const { rows: orders, count: total } = await Order.findAndCountAll({
-      where,
-      include: [{
-        model: User,
-        as: 'user',
-        attributes: ['name', 'email', 'phone']
-      }],
-      order: [['createdAt', 'DESC']],
-      offset: skip,
-      limit: limit
-    });
-
-    // If admin, filter items in each order to show only their products
+    // Process orders to format user data and filter items for admin
     const filteredOrders = orders.map(order => {
-      const orderObj = order.toJSON();
+      // Handle different data structures (Sequelize model vs raw query)
+      const orderObj = order.toJSON ? order.toJSON() : order;
+      
+      // Format user data from raw query if needed
+      if (orderObj['user.name']) {
+        orderObj.user = {
+          name: orderObj['user.name'],
+          email: orderObj['user.email'],
+          phone: orderObj['user.phone']
+        };
+        delete orderObj['user.name'];
+        delete orderObj['user.email'];
+        delete orderObj['user.phone'];
+      }
+      
+      // Format customer info for frontend compatibility
+      orderObj.customerInfo = {
+        name: orderObj.customerName,
+        email: orderObj.customerEmail,
+        phone: orderObj.customerPhone,
+        address: orderObj.customerAddress,
+        city: orderObj.customerCity,
+        zip: orderObj.customerZip || '',
+        notes: orderObj.customerNotes || ''
+      };
+      
+      // Add _id alias for frontend compatibility
+      orderObj._id = orderObj.id;
       
       if (!isSuperAdmin) {
         // Filter items to show only this admin's products
-        orderObj.items = orderObj.items.filter(item => 
+        orderObj.items = (orderObj.items || []).filter(item => 
           item.adminId && item.adminId.toString() === adminId.toString()
         );
         

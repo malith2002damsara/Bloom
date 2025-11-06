@@ -895,7 +895,7 @@ const Add = () => {
                         
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                           <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Flower Count</label>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Flower Count *</label>
                             <input
                               type="number"
                               value={item.flowerCount}
@@ -906,7 +906,7 @@ const Add = () => {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Old Price (LKR) - Optional</label>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Old Price (Rs.) - Optional</label>
                             <input
                               type="number"
                               value={item.oldPrice || ''}
@@ -918,7 +918,7 @@ const Add = () => {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">New Price (LKR)</label>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">New Price (Rs.) *</label>
                             <input
                               type="number"
                               value={item.price}
@@ -932,14 +932,14 @@ const Add = () => {
                         </div>
                         
                         {/* Display calculated discount */}
-                        {item.oldPrice > 0 && item.price > 0 && item.price < item.oldPrice && (
-                          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                        {item.oldPrice > 0 && item.price > 0 && parseFloat(item.price) < parseFloat(item.oldPrice) && (
+                          <div className="mb-4 p-3 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg shadow-sm">
                             <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-green-800">
-                                Discount: {Math.round(((item.oldPrice - item.price) / item.oldPrice) * 100 * 100) / 100}% OFF
+                              <span className="text-sm font-bold text-green-800">
+                                💰 Discount: {Math.round(((parseFloat(item.oldPrice) - parseFloat(item.price)) / parseFloat(item.oldPrice)) * 100 * 100) / 100}% OFF
                               </span>
-                              <span className="text-xs text-green-600">
-                                Save Rs. {(item.oldPrice - item.price).toFixed(2)}
+                              <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-1 rounded-full">
+                                Save Rs. {(parseFloat(item.oldPrice) - parseFloat(item.price)).toFixed(2)}
                               </span>
                             </div>
                           </div>
@@ -1294,14 +1294,14 @@ const Add = () => {
                           </div>
                           
                           {/* Display calculated discount */}
-                          {item.oldPrice > 0 && item.price > 0 && item.price < item.oldPrice && (
-                            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                          {item.oldPrice > 0 && item.price > 0 && parseFloat(item.price) < parseFloat(item.oldPrice) && (
+                            <div className="mb-4 p-3 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg shadow-sm">
                               <div className="flex items-center justify-between">
-                                <span className="text-sm font-medium text-green-800">
-                                  Discount: {Math.round(((item.oldPrice - item.price) / item.oldPrice) * 100 * 100) / 100}% OFF
+                                <span className="text-sm font-bold text-green-800">
+                                  💰 Discount: {Math.round(((parseFloat(item.oldPrice) - parseFloat(item.price)) / parseFloat(item.oldPrice)) * 100 * 100) / 100}% OFF
                                 </span>
-                                <span className="text-xs text-green-600">
-                                  Save Rs. {(item.oldPrice - item.price).toFixed(2)}
+                                <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-1 rounded-full">
+                                  Save Rs. {(parseFloat(item.oldPrice) - parseFloat(item.price)).toFixed(2)}
                                 </span>
                               </div>
                             </div>

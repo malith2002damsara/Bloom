@@ -512,7 +512,7 @@ const getTopProducts = async (req, res) => {
         SUM((item->>'quantity')::integer) AS "totalQuantitySold",
         SUM((item->>'price')::numeric * (item->>'quantity')::numeric) AS "totalRevenue",
         COUNT(DISTINCT o.id) AS "orderCount"
-      FROM "Orders" o,
+      FROM orders o,
       jsonb_array_elements(o.items) AS item
       WHERE (item->>'adminId')::uuid = :adminId
         AND o."orderStatus" IN ('delivered', 'completed')
@@ -660,56 +660,193 @@ const getSimplifiedDashboard = async (req, res) => {
       attributes: ['name', 'email', 'adminCode', 'isActive', 'earningsTotal', 'commissionTotalDue']
     });
 
-    // Get recent orders (simplified - only product info) using raw SQL
-    const recentOrders = await sequelize.query(`
-      SELECT 
-        o.id AS "orderId",
-        o."orderStatus",
-        o."createdAt",
-        item->>'name' AS "productName",
-        item->>'image' AS "productImage",
-        (item->>'quantity')::integer AS quantity,
-        (item->>'price')::numeric AS price
-      FROM "Orders" o,
-      jsonb_array_elements(o.items) AS item
-      WHERE (item->>'adminId')::uuid = :adminId
-      ORDER BY o."createdAt" DESC
-      LIMIT 10
-    `, {
-      replacements: { adminId },
-      type: sequelize.QueryTypes.SELECT
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        message: 'Admin not found'
+      });
+    }
+
+    // Get admin's products
+    const adminProducts = await Product.findAll({
+      where: { adminId },
+      attributes: ['id', 'stock']
     });
+    const productIds = adminProducts.map(p => p.id);
+
+    // Get recent orders (simplified - only product info)
+    let recentOrders = [];
+    if (productIds.length > 0) {
+      try {
+        const orders = await sequelize.query(`
+          SELECT 
+            o.id AS "orderId",
+            o."orderStatus",
+            o."createdAt",
+            item->>'name' AS "productName",
+            item->>'image' AS "productImage",
+            (item->>'quantity')::integer AS quantity,
+            (item->>'price')::numeric AS price
+          FROM orders o,
+          jsonb_array_elements(o.items) AS item
+          WHERE (item->>'productId')::text = ANY(ARRAY[:productIds])
+          ORDER BY o."createdAt" DESC
+          LIMIT 10
+        `, {
+          replacements: { productIds: productIds.map(id => id.toString()) },
+          type: sequelize.QueryTypes.SELECT
+        });
+
+        recentOrders = orders;
+      } catch (err) {
+        console.error('Error fetching recent orders:', err);
+        // Continue with empty orders
+      }
+    }
 
     // Format recent orders to show only relevant product data
     const formattedOrders = recentOrders.map(order => ({
-      productName: order.productName,
-      productImage: order.productImage,
-      quantity: order.quantity,
-      totalAmount: parseFloat(order.price) * order.quantity,
-      status: order.orderStatus,
-      orderDate: order.createdAt
+      productName: order.productName || 'Unknown Product',
+      productImage: order.productImage || null,
+      quantity: order.quantity || 0,
+      totalAmount: parseFloat(order.price || 0) * (order.quantity || 0),
+      status: order.orderStatus || 'pending',
+      orderDate: order.createdAt || new Date()
     }));
 
     // Get quick stats
     const totalProducts = await Product.count({ where: { adminId } });
     
-    // Count active orders using raw SQL
-    const activeOrdersResult = await sequelize.query(`
-      SELECT COUNT(DISTINCT o.id) as count
-      FROM "Orders" o,
-      jsonb_array_elements(o.items) AS item
-      WHERE (item->>'adminId')::uuid = :adminId
-        AND o."orderStatus" IN ('pending', 'confirmed', 'processing', 'shipped')
-    `, {
-      replacements: { adminId },
-      type: sequelize.QueryTypes.SELECT
+    // Count total orders
+    let totalOrders = 0;
+    if (productIds.length > 0) {
+      try {
+        const orderCountResult = await sequelize.query(`
+          SELECT COUNT(DISTINCT o.id) as count
+          FROM orders o,
+          jsonb_array_elements(o.items) AS item
+          WHERE (item->>'productId')::text = ANY(ARRAY[:productIds])
+        `, {
+          replacements: { productIds: productIds.map(id => id.toString()) },
+          type: sequelize.QueryTypes.SELECT
+        });
+        totalOrders = parseInt(orderCountResult[0]?.count || 0);
+      } catch (err) {
+        console.error('Error counting orders:', err);
+      }
+    }
+
+    // Count pending orders
+    let pendingOrders = 0;
+    if (productIds.length > 0) {
+      try {
+        const pendingOrdersResult = await sequelize.query(`
+          SELECT COUNT(DISTINCT o.id) as count
+          FROM orders o,
+          jsonb_array_elements(o.items) AS item
+          WHERE (item->>'productId')::text = ANY(ARRAY[:productIds])
+            AND o."orderStatus" IN ('pending', 'confirmed', 'processing')
+        `, {
+          replacements: { productIds: productIds.map(id => id.toString()) },
+          type: sequelize.QueryTypes.SELECT
+        });
+        pendingOrders = parseInt(pendingOrdersResult[0]?.count || 0);
+      } catch (err) {
+        console.error('Error counting pending orders:', err);
+      }
+    }
+
+    // Calculate total sales from delivered orders
+    let totalSales = 0;
+    if (productIds.length > 0) {
+      try {
+        const salesResult = await sequelize.query(`
+          SELECT SUM((item->>'price')::numeric * (item->>'quantity')::numeric) as total
+          FROM orders o,
+          jsonb_array_elements(o.items) AS item
+          WHERE (item->>'productId')::text = ANY(ARRAY[:productIds])
+            AND o."orderStatus" IN ('delivered', 'completed')
+        `, {
+          replacements: { productIds: productIds.map(id => id.toString()) },
+          type: sequelize.QueryTypes.SELECT
+        });
+        totalSales = parseFloat(salesResult[0]?.total || 0);
+      } catch (err) {
+        console.error('Error calculating sales:', err);
+      }
+    }
+
+    // Count low stock products (stock <= 10)
+    const lowStock = await Product.count({
+      where: {
+        adminId,
+        stock: { [Op.lte]: 10, [Op.gt]: 0 }
+      }
+    });
+
+    // Prepare sales and category data for charts
+    const salesData = [];
+    const categoryData = [];
+
+    // Get sales data for last 7 days
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    if (productIds.length > 0) {
+      try {
+        const dailySales = await sequelize.query(`
+          SELECT 
+            DATE(o."createdAt") as date,
+            SUM((item->>'price')::numeric * (item->>'quantity')::numeric) as sales
+          FROM orders o,
+          jsonb_array_elements(o.items) AS item
+          WHERE (item->>'productId')::text = ANY(ARRAY[:productIds])
+            AND o."createdAt" >= :sevenDaysAgo
+            AND o."orderStatus" IN ('delivered', 'completed')
+          GROUP BY DATE(o."createdAt")
+          ORDER BY date ASC
+        `, {
+          replacements: { productIds: productIds.map(id => id.toString()), sevenDaysAgo },
+          type: sequelize.QueryTypes.SELECT
+        });
+
+        // Format for chart
+        dailySales.forEach(day => {
+          salesData.push({
+            date: new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            sales: parseFloat(day.sales || 0)
+          });
+        });
+      } catch (err) {
+        console.error('Error fetching daily sales:', err);
+      }
+    }
+
+    // Get category distribution
+    const categoryStats = await Product.findAll({
+      where: { adminId },
+      attributes: [
+        'category',
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+      ],
+      group: ['category'],
+      raw: true
+    });
+
+    categoryStats.forEach(stat => {
+      categoryData.push({
+        name: stat.category || 'Other',
+        value: parseInt(stat.count || 0)
+      });
     });
 
     const stats = {
+      totalSales: Math.round(totalSales * 100) / 100,
+      totalOrders,
       totalProducts,
-      activeOrders: parseInt(activeOrdersResult[0]?.count || 0),
-      totalRevenue: admin.earningsTotal || 0,
-      pendingCommission: admin.commissionTotalDue || 0
+      pendingOrders,
+      lowStock,
+      pendingCommission: parseFloat(admin.commissionTotalDue || 0)
     };
 
     res.json({
@@ -722,7 +859,9 @@ const getSimplifiedDashboard = async (req, res) => {
           isActive: admin.isActive
         },
         stats,
-        recentOrders: formattedOrders
+        recentOrders: formattedOrders,
+        salesData,
+        categoryData
       }
     });
 

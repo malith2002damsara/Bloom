@@ -494,7 +494,7 @@ const MyOrders = () => {
                   <span className="text-gray-600 text-sm">Total Amount</span>
                   <div className="flex items-center text-lg font-bold text-gray-800">
                     <FiDollarSign className="text-green-600" />
-                    {order.total?.toFixed(2) || '0.00'}
+                    Rs. {parseFloat(order.total || 0).toFixed(2)}
                   </div>
                 </div>
 
@@ -542,9 +542,31 @@ const MyOrders = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-gray-800 truncate">{item.name}</p>
-                          <div className="flex items-center justify-between text-xs text-gray-600 mt-1">
-                            <span className="text-purple-600 font-medium">Qty: {item.quantity}</span>
-                            <span className="font-bold text-green-600">${item.price?.toFixed(2)}</span>
+                          
+                          {/* Pricing with Discount Info */}
+                          <div className="mt-1">
+                            {item.oldPrice > 0 && item.price < item.oldPrice ? (
+                              <>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-xs text-gray-400 line-through">
+                                    Rs. {parseFloat(item.oldPrice || 0).toFixed(2)}
+                                  </span>
+                                  <span className="text-sm font-bold text-purple-600">
+                                    Rs. {parseFloat(item.price || 0).toFixed(2)}
+                                  </span>
+                                </div>
+                                <div className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded">
+                                  <span className="text-xs font-bold text-green-800">
+                                    💰 {Math.round(((parseFloat(item.oldPrice) - parseFloat(item.price)) / parseFloat(item.oldPrice)) * 100)}% OFF
+                                  </span>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="flex items-center justify-between text-xs text-gray-600 mt-1">
+                                <span className="text-purple-600 font-medium">Qty: {item.quantity}</span>
+                                <span className="font-bold text-green-600">Rs. {parseFloat(item.price || 0).toFixed(2)}</span>
+                              </div>
+                            )}
                           </div>
                           
                           {/* Feedback Button - Only show for delivered orders */}
@@ -813,14 +835,38 @@ const MyOrders = () => {
                     <h3 className="text-2xl font-bold text-gray-800 mb-2">
                       {selectedProduct.name}
                     </h3>
-                    <div className="flex items-center space-x-4">
-                      <span className="text-3xl font-bold text-green-600">
-                        ${selectedProduct.price?.toFixed(2)}
-                      </span>
-                      <span className="text-sm text-gray-500">
-                        per item
-                      </span>
-                    </div>
+                    
+                    {/* Enhanced Pricing Display */}
+                    {selectedProduct.oldPrice > 0 && selectedProduct.price < selectedProduct.oldPrice ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-3">
+                          <span className="text-lg text-gray-400 line-through">
+                            Rs. {parseFloat(selectedProduct.oldPrice || 0).toFixed(2)}
+                          </span>
+                          <span className="text-3xl font-bold text-purple-600">
+                            Rs. {parseFloat(selectedProduct.price || 0).toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
+                          <span className="text-sm font-bold text-green-800">
+                            💰 Discount: {Math.round(((parseFloat(selectedProduct.oldPrice) - parseFloat(selectedProduct.price)) / parseFloat(selectedProduct.oldPrice)) * 100)}% OFF
+                          </span>
+                          <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-1 rounded-full">
+                            Save Rs. {(parseFloat(selectedProduct.oldPrice || 0) - parseFloat(selectedProduct.price || 0)).toFixed(2)}
+                          </span>
+                        </div>
+                        <span className="text-sm text-gray-500">per item</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-4">
+                        <span className="text-3xl font-bold text-green-600">
+                          Rs. {parseFloat(selectedProduct.price || 0).toFixed(2)}
+                        </span>
+                        <span className="text-sm text-gray-500">
+                          per item
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Description */}
@@ -870,10 +916,10 @@ const MyOrders = () => {
                         Total Price
                       </h5>
                       <p className="text-gray-600 font-bold text-lg">
-                        ${(selectedProduct.price * selectedProduct.quantity).toFixed(2)}
+                        Rs. {(parseFloat(selectedProduct.price || 0) * (selectedProduct.quantity || 1)).toFixed(2)}
                       </p>
                       <p className="text-xs text-gray-500">
-                        ${selectedProduct.price?.toFixed(2)} × {selectedProduct.quantity}
+                        Rs. {parseFloat(selectedProduct.price || 0).toFixed(2)} × {selectedProduct.quantity}
                       </p>
                     </div>
 

@@ -587,8 +587,8 @@ const List = () => {
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
             >
               <option value="all">All Categories</option>
-              {categories.map(category => (
-                <option key={category} value={category}>
+              {categories.map((category, idx) => (
+                <option key={`category-${idx}-${category}`} value={category}>
                   {category}
                 </option>
               ))}
@@ -916,16 +916,45 @@ const List = () => {
                 {/* Available Sizes with Flower Counts */}
                 {viewingProduct.sizes && viewingProduct.sizes.length > 0 && (
                   <div className="bg-gradient-to-r from-blue-50 to-cyan-50 p-6 rounded-xl border border-blue-200">
-                    <h4 className="text-lg font-semibold text-blue-900 mb-4">Available Sizes</h4>
+                    <h4 className="text-lg font-semibold text-blue-900 mb-4">Available Sizes & Pricing</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {viewingProduct.sizes.map((sizeItem, index) => (
                         <div key={index} className="bg-white p-4 rounded-lg border border-blue-300 shadow-sm">
-                          <div className="flex justify-between items-center mb-2">
+                          <div className="flex justify-between items-center mb-3">
                             <span className="font-bold text-blue-900 text-lg">{sizeItem.size}</span>
                             <span className="text-sm text-blue-700 bg-blue-100 px-2 py-1 rounded-full">
                               {sizeItem.flowerCount} flowers
                             </span>
                           </div>
+                          
+                          {/* Pricing Section */}
+                          <div className="mb-3 space-y-2">
+                            {sizeItem.oldPrice && parseFloat(sizeItem.oldPrice) > 0 && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-500">Old Price:</span>
+                                <span className="text-sm text-gray-500 line-through">Rs. {parseFloat(sizeItem.oldPrice).toFixed(2)}</span>
+                              </div>
+                            )}
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-medium text-gray-700">Price:</span>
+                              <span className="text-lg font-bold text-green-600">Rs. {parseFloat(sizeItem.price || 0).toFixed(2)}</span>
+                            </div>
+                            
+                            {/* Display Discount if applicable */}
+                            {sizeItem.oldPrice && parseFloat(sizeItem.oldPrice) > 0 && parseFloat(sizeItem.price) < parseFloat(sizeItem.oldPrice) && (
+                              <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-2 py-1 rounded-lg border border-green-200">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-green-800">
+                                    {Math.round(((parseFloat(sizeItem.oldPrice) - parseFloat(sizeItem.price)) / parseFloat(sizeItem.oldPrice)) * 100 * 100) / 100}% OFF
+                                  </span>
+                                  <span className="text-xs font-semibold text-green-700">
+                                    Save Rs. {(parseFloat(sizeItem.oldPrice) - parseFloat(sizeItem.price)).toFixed(2)}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          
                           {sizeItem.dimensions && (sizeItem.dimensions.height || sizeItem.dimensions.width || sizeItem.dimensions.depth) && (
                             <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
                               <strong>Dimensions:</strong> {sizeItem.dimensions.height}"H × {sizeItem.dimensions.width}"W × {sizeItem.dimensions.depth}"D
@@ -1153,8 +1182,6 @@ const List = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 
-
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Occasion
@@ -1172,23 +1199,6 @@ const List = () => {
                         </option>
                       ))}
                     </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Discount (%)
-                    </label>
-                    <input
-                      type="number"
-                      name="discount"
-                      value={editFormData.discount}
-                      onChange={handleEditInputChange}
-                      min="0"
-                      max="100"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                      placeholder="0"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">Enter a value between 0-100%</p>
                   </div>
                 </div>
               </div>
@@ -1250,7 +1260,7 @@ const List = () => {
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                               <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Flower Count</label>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Flower Count *</label>
                                 <input
                                   type="number"
                                   value={item.flowerCount}
@@ -1261,12 +1271,24 @@ const List = () => {
                                 />
                               </div>
                               <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Price ($)</label>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Old Price (Rs.) - Optional</label>
+                                <input
+                                  type="number"
+                                  value={item.oldPrice || ''}
+                                  onChange={(e) => updateSize(index, 'oldPrice', e.target.value)}
+                                  placeholder="Original price"
+                                  min="0"
+                                  step="0.01"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">New Price (Rs.) *</label>
                                 <input
                                   type="number"
                                   value={item.price || ''}
                                   onChange={(e) => updateSize(index, 'price', e.target.value)}
-                                  placeholder="Price for this size"
+                                  placeholder="Current price"
                                   min="0"
                                   step="0.01"
                                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
@@ -1306,6 +1328,20 @@ const List = () => {
                                 />
                               </div>
                             </div>
+                            
+                            {/* Display calculated discount */}
+                            {item.oldPrice > 0 && item.price > 0 && parseFloat(item.price) < parseFloat(item.oldPrice) && (
+                              <div className="mt-4 p-3 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg shadow-sm">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-bold text-green-800">
+                                    💰 Discount: {Math.round(((parseFloat(item.oldPrice) - parseFloat(item.price)) / parseFloat(item.oldPrice)) * 100 * 100) / 100}% OFF
+                                  </span>
+                                  <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-1 rounded-full">
+                                    Save Rs. {(parseFloat(item.oldPrice) - parseFloat(item.price)).toFixed(2)}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -1545,19 +1581,50 @@ const List = () => {
                               </h6>
                             </div>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {/* Pricing section with old and new price */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                               <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Price ($)</label>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Old Price (Rs.) - Optional</label>
+                                <input
+                                  type="number"
+                                  value={item.oldPrice || ''}
+                                  onChange={(e) => updateBearSize(index, 'oldPrice', e.target.value)}
+                                  step="0.01"
+                                  min="0"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+                                  placeholder="Original price"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">New Price (Rs.) *</label>
                                 <input
                                   type="number"
                                   value={item.price || ''}
                                   onChange={(e) => updateBearSize(index, 'price', e.target.value)}
-                                  placeholder="Price for this size"
-                                  min="0"
                                   step="0.01"
+                                  min="0"
                                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+                                  placeholder="Current price"
                                 />
                               </div>
+                            </div>
+                            
+                            {/* Display calculated discount */}
+                            {item.oldPrice > 0 && item.price > 0 && parseFloat(item.price) < parseFloat(item.oldPrice) && (
+                              <div className="mb-4 p-3 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg shadow-sm">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-bold text-green-800">
+                                    💰 Discount: {Math.round(((parseFloat(item.oldPrice) - parseFloat(item.price)) / parseFloat(item.oldPrice)) * 100 * 100) / 100}% OFF
+                                  </span>
+                                  <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-1 rounded-full">
+                                    Save Rs. {(parseFloat(item.oldPrice) - parseFloat(item.price)).toFixed(2)}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Dimensions section */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div>
                                 <label className="block text-xs font-medium text-gray-600 mb-1">Height (inches)</label>
                                 <input

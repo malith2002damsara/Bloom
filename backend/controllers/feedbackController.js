@@ -38,7 +38,7 @@ const submitFeedback = async (req, res) => {
     // Check if order exists and belongs to user using raw SQL (JSONB query)
     const orders = await sequelize.query(`
       SELECT id, "orderStatus", items
-      FROM "Orders"
+      FROM orders
       WHERE id = :orderId
         AND "userId" = :userId
       LIMIT 1
@@ -107,7 +107,7 @@ const submitFeedback = async (req, res) => {
 
     // Mark order as feedback submitted - update using raw SQL
     await sequelize.query(`
-      UPDATE "Orders"
+      UPDATE orders
       SET "feedbackSubmitted" = true
       WHERE id = :orderId
     `, {
@@ -154,6 +154,15 @@ const getProductFeedback = async (req, res) => {
     console.log('=== GET PRODUCT FEEDBACK ===');
     console.log('Product ID:', productId);
 
+    // Verify product exists
+    const product = await Product.findByPk(productId);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
     // Get latest 10 approved feedbacks with highest ratings first
     const feedbacks = await Feedback.findAll({
       where: {
@@ -163,9 +172,10 @@ const getProductFeedback = async (req, res) => {
       include: [{
         model: User,
         as: 'user',
-        attributes: ['name']
+        attributes: ['name'],
+        required: false
       }],
-      attributes: ['rating', 'comment', 'createdAt', 'userId', 'isVerifiedPurchase', 'helpfulCount'],
+      attributes: ['id', 'rating', 'comment', 'createdAt', 'userId', 'isVerifiedPurchase', 'helpfulCount'],
       order: [['rating', 'DESC'], ['createdAt', 'DESC']], // Sort by rating (highest first), then newest
       offset: skip,
       limit: limit
@@ -181,7 +191,7 @@ const getProductFeedback = async (req, res) => {
     // Calculate rating distribution using raw SQL
     const ratingStats = await sequelize.query(`
       SELECT rating, COUNT(*) as count
-      FROM "Feedback"
+      FROM feedback
       WHERE "productId" = :productId
         AND status = 'approved'
       GROUP BY rating
@@ -240,15 +250,17 @@ const getTopComments = async (req, res) => {
         {
           model: User,
           as: 'user',
-          attributes: ['name']
+          attributes: ['name'],
+          required: false
         },
         {
           model: Product,
           as: 'product',
-          attributes: ['name', 'images']
+          attributes: ['name', 'images'],
+          required: false
         }
       ],
-      attributes: ['rating', 'comment', 'createdAt', 'userId', 'productId', 'isVerifiedPurchase'],
+      attributes: ['id', 'rating', 'comment', 'createdAt', 'userId', 'productId', 'isVerifiedPurchase'],
       order: [['rating', 'DESC'], ['createdAt', 'DESC']],
       limit: 10
     });
@@ -298,20 +310,23 @@ const getAdminFeedback = async (req, res) => {
         {
           model: User,
           as: 'user',
-          attributes: ['name']
+          attributes: ['name'],
+          required: false
         },
         {
           model: Product,
           as: 'product',
-          attributes: ['name', 'images']
+          attributes: ['name', 'images'],
+          required: false
         },
         {
           model: Order,
           as: 'order',
-          attributes: ['orderNumber']
+          attributes: ['id'],
+          required: false
         }
       ],
-      attributes: ['rating', 'comment', 'createdAt', 'userId', 'productId', 'orderId', 'isVerifiedPurchase'],
+      attributes: ['id', 'rating', 'comment', 'createdAt', 'userId', 'productId', 'orderId', 'isVerifiedPurchase'],
       order: [['createdAt', 'DESC']],
       offset: skip,
       limit: limit
@@ -324,7 +339,7 @@ const getAdminFeedback = async (req, res) => {
       SELECT 
         AVG(rating) as "averageRating",
         COUNT(*) as "totalFeedbacks"
-      FROM "Feedback"
+      FROM feedback
       WHERE "adminId" = :adminId
         AND status = 'approved'
     `, {
@@ -377,7 +392,7 @@ const checkFeedbackEligibility = async (req, res) => {
 
     const orders = await sequelize.query(`
       SELECT id, "orderStatus", "feedbackSubmitted", items
-      FROM "Orders"
+      FROM orders
       WHERE id = :orderId
         AND "userId" = :userId
       LIMIT 1

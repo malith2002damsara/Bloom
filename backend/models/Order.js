@@ -53,12 +53,22 @@ const Order = sequelize.define('Order', {
     defaultValue: ''
   },
   paymentMethod: {
-    type: DataTypes.ENUM('cod', 'card', 'paypal'),
+    type: DataTypes.ENUM('cod', 'card', 'mastercard', 'visa', 'stripe'),
     defaultValue: 'cod'
   },
   paymentStatus: {
     type: DataTypes.ENUM('pending', 'paid', 'failed', 'refunded'),
     defaultValue: 'pending'
+  },
+  paymentIntentId: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+    comment: 'Stripe Payment Intent ID for card payments'
+  },
+  paymentTransactionId: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+    comment: 'Transaction ID from payment gateway'
   },
   orderStatus: {
     type: DataTypes.ENUM('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'),
