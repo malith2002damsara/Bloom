@@ -287,53 +287,6 @@ const ProductCard = ({ product }) => {
             )}
           </div>
 
-          {/* Top Reviews Section - Show on card */}
-          {topReviews.length > 0 && (
-            <div className="mb-2 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg p-2">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center space-x-1">
-                  <FiMessageCircle className="h-3 w-3 text-yellow-600" />
-                  <span className="text-xs font-semibold text-yellow-800">Top Reviews</span>
-                </div>
-                <button 
-                  onClick={() => setShowQuickView(true)}
-                  className="text-xs text-yellow-700 hover:text-yellow-900 font-medium underline"
-                >
-                  View All
-                </button>
-              </div>
-              <div className="space-y-1.5">
-                {topReviews.map((review, index) => (
-                  <div key={index} className="bg-white rounded p-1.5 border border-yellow-100">
-                    <div className="flex items-center justify-between mb-0.5">
-                      <div className="flex items-center space-x-1">
-                        <div className="flex">
-                          {[...Array(5)].map((_, i) => (
-                            <FiStar
-                              key={i}
-                              className={`h-2.5 w-2.5 ${
-                                i < review.rating ? 'text-yellow-400 fill-current' : 'text-gray-300'
-                              }`}
-                            />
-                          ))}
-                        </div>
-                        <span className="text-xs font-medium text-gray-700">
-                          {review.userId?.name || 'Anonymous'}
-                        </span>
-                      </div>
-                      {review.isVerifiedPurchase && (
-                        <span className="text-xs text-green-600">✓</span>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-600 line-clamp-2 leading-tight">
-                      {review.comment}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {loadingReviews && (
             <div className="mb-2 bg-gray-50 rounded-lg p-2 text-center">
               <span className="text-xs text-gray-500">Loading reviews...</span>

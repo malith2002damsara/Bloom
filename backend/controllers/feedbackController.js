@@ -117,12 +117,24 @@ const submitFeedback = async (req, res) => {
       type: sequelize.QueryTypes.UPDATE
     });
 
+    // Get the user's name to include in response
+    const user = await User.findByPk(userId, {
+      attributes: ['name']
+    });
+
     console.log('✅ Feedback submitted successfully');
 
     res.status(201).json({
       success: true,
       message: 'Thank you for your feedback!',
-      data: { feedback }
+      data: { 
+        feedback: {
+          ...feedback.toJSON(),
+          userId: {
+            name: user?.name
+          }
+        }
+      }
     });
 
   } catch (error) {

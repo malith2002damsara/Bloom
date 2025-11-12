@@ -132,7 +132,7 @@ const ProductReviews = ({ productId }) => {
           </div>
           <div>
             <p className="font-medium text-gray-900">
-              {review.userId?.name || 'Anonymous User'}
+              {review.userId?.name || review.user?.name}
             </p>
             <p className="text-xs text-gray-500">{formatDate(review.createdAt)}</p>
             {review.isVerifiedPurchase && (
