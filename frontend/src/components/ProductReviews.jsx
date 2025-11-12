@@ -203,16 +203,7 @@ const ProductReviews = ({ productId }) => {
           >
             All Reviews ({pagination.total})
           </button>
-          <button
-            onClick={() => setActiveTab('top')}
-            className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
-              activeTab === 'top'
-                ? 'border-purple-600 text-purple-600'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Top Comments ({topComments.length})
-          </button>
+         
         </div>
       </div>
 
