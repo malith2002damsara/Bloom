@@ -8,7 +8,8 @@ import {
   Flower,
   UserPlus,
   List,
-  Lock
+  Lock,
+  Receipt
 } from 'lucide-react';
 import { useSuperAdminAuth } from '../context/SuperAdminAuthContext';
 import ChangePasswordModal from './ChangePasswordModal';
@@ -21,8 +22,8 @@ const Sidebar = () => {
   const menuItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/add-admin', icon: UserPlus, label: 'Add Admin' },
-    { path: '/list-admin', icon: List, label: 'List Admin' },
-    { path: '/transactions', icon: ShoppingBag, label: 'Transactions' },
+    { path: '/list-admin', icon: Users, label: 'List Admin' },
+    { path: '/transactions', icon: Receipt, label: 'Transactions' }
   ];
 
   const handleLogout = () => {

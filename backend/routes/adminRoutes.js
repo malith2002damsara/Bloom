@@ -254,6 +254,114 @@ router.post('/commission/confirm-stripe-payment', auth, adminOnly, confirmStripe
 router.get('/commission/history', auth, adminOnly, getPaymentHistory);
 router.get('/commission/stats', auth, adminOnly, getCommissionStats);
 
+// New payment gateway routes for commission payments
+router.get('/commission-status', auth, adminOnly, async (req, res) => {
+  try {
+    const Admin = require('../models/Admin');
+    const admin = await Admin.findByPk(req.user.id);
+    
+    if (!admin) {
+      return res.status(404).json({ success: false, message: 'Admin not found' });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        totalDue: admin.commissionTotalDue || 0,
+        nextDueDate: admin.commissionNextDueDate,
+        lifetimeSales: admin.lifetimeSales || 0,
+        commissionRate: 10
+      }
+    });
+  } catch (error) {
+    console.error('Commission status error:', error);
+    res.status(500).json({ success: false, message: 'Failed to get commission status' });
+  }
+});
+
+router.post('/commission-payments/create-intent', auth, adminOnly, async (req, res) => {
+  try {
+    const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+    const { amount, paymentMethod } = req.body;
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(amount * 100), // Convert to cents
+      currency: 'usd',
+      metadata: {
+        adminId: req.user.id,
+        type: 'commission_payment',
+        paymentMethod: paymentMethod
+      }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        clientSecret: paymentIntent.client_secret
+      }
+    });
+  } catch (error) {
+    console.error('Create payment intent error:', error);
+    res.status(500).json({ success: false, message: 'Failed to create payment intent' });
+  }
+});
+
+router.post('/commission-payments', auth, adminOnly, async (req, res) => {
+  try {
+    const CommissionPayment = require('../models/CommissionPayment');
+    const Admin = require('../models/Admin');
+    const { amount, paymentMethod, stripePaymentIntentId, stripeTransactionId, notes } = req.body;
+
+    // Create payment record
+    const payment = await CommissionPayment.create({
+      adminId: req.user.id,
+      amount: amount,
+      paymentMethod: paymentMethod,
+      status: paymentMethod === 'cash' ? 'pending_verification' : 'paid',
+      stripePaymentIntentId: stripePaymentIntentId,
+      stripeTransactionId: stripeTransactionId,
+      notes: notes || ''
+    });
+
+    // Update admin's commission balance if payment is successful
+    if (paymentMethod !== 'cash' && paymentMethod !== 'paypal') {
+      const admin = await Admin.findByPk(req.user.id);
+      if (admin) {
+        admin.commissionTotalDue = Math.max(0, (admin.commissionTotalDue || 0) - amount);
+        await admin.save();
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Payment recorded successfully',
+      data: payment
+    });
+  } catch (error) {
+    console.error('Record payment error:', error);
+    res.status(500).json({ success: false, message: 'Failed to record payment' });
+  }
+});
+
+router.get('/commission-payments/history', auth, adminOnly, async (req, res) => {
+  try {
+    const CommissionPayment = require('../models/CommissionPayment');
+    
+    const payments = await CommissionPayment.findAll({
+      where: { adminId: req.user.id },
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json({
+      success: true,
+      data: payments
+    });
+  } catch (error) {
+    console.error('Payment history error:', error);
+    res.status(500).json({ success: false, message: 'Failed to get payment history' });
+  }
+});
+
 // Notification routes
 router.get('/notifications', auth, adminOnly, getNotifications);
 router.put('/notifications/:id/read', auth, adminOnly, markNotificationRead);

@@ -1346,6 +1346,121 @@ const checkPhoneAvailability = async (req, res) => {
   }
 };
 
+// @desc    Get all commission payments
+// @route   GET /api/superadmin/commission-payments
+// @access  SuperAdmin
+const getAllCommissionPayments = async (req, res) => {
+  try {
+    const CommissionPayment = require('../models/CommissionPayment');
+    
+    const payments = await CommissionPayment.findAll({
+      include: [
+        {
+          model: Admin,
+          as: 'admin',
+          attributes: ['id', 'name', 'email', 'phone']
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.status(200).json({
+      success: true,
+      data: payments
+    });
+  } catch (error) {
+    console.error('Get commission payments error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch commission payments',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get commission payment by ID
+// @route   GET /api/superadmin/commission-payments/:id
+// @access  SuperAdmin
+const getCommissionPaymentById = async (req, res) => {
+  try {
+    const CommissionPayment = require('../models/CommissionPayment');
+    const { id } = req.params;
+
+    const payment = await CommissionPayment.findByPk(id, {
+      include: [
+        {
+          model: Admin,
+          as: 'admin',
+          attributes: ['id', 'name', 'email', 'phone']
+        }
+      ]
+    });
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Commission payment not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: payment
+    });
+  } catch (error) {
+    console.error('Get commission payment error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch commission payment',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Verify/Update commission payment status
+// @route   PUT /api/superadmin/commission-payments/:id/verify
+// @access  SuperAdmin
+const verifyCommissionPayment = async (req, res) => {
+  try {
+    const CommissionPayment = require('../models/CommissionPayment');
+    const { id } = req.params;
+    const { status, notes } = req.body;
+
+    const payment = await CommissionPayment.findByPk(id);
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Commission payment not found'
+      });
+    }
+
+    // Update payment status
+    payment.status = status;
+    if (notes) payment.notes = notes;
+    
+    if (status === 'verified' || status === 'paid') {
+      payment.verifiedBy = req.user.userId;
+      payment.verifiedAt = new Date();
+    }
+
+    await payment.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Payment status updated successfully',
+      data: payment
+    });
+  } catch (error) {
+    console.error('Verify commission payment error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to verify commission payment',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   superAdminLogin,
   verifySuperAdmin,
@@ -1369,5 +1484,8 @@ module.exports = {
   getAllReports,
   getReportDetails,
   generateCustomReport,
-  checkPhoneAvailability
+  checkPhoneAvailability,
+  getAllCommissionPayments,
+  getCommissionPaymentById,
+  verifyCommissionPayment
 };

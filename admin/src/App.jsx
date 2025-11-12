@@ -12,6 +12,7 @@ import Add from './pages/Add';
 import List from './pages/List';
 import Orders from './pages/Orders';
 import Profile from './pages/Profile';
+import Payments from './pages/Payments';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAdminAuth();
@@ -109,6 +110,16 @@ const AppContent = () => {
             <ProtectedRoute>
               <AdminLayout>
                 <Orders />
+              </AdminLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/payments"
+          element={
+            <ProtectedRoute>
+              <AdminLayout>
+                <Payments />
               </AdminLayout>
             </ProtectedRoute>
           }

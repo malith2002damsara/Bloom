@@ -40,6 +40,7 @@ app.use('/api/superadmin', require('./routes/superadminRoutes'));
 app.use('/api/superadmin/auth', require('./routes/superAdminAuth'));
 app.use('/api/feedback', require('./routes/feedbackRoutes'));
 app.use('/api/commission', require('./routes/commissionRoutes'));
+app.use('/api/payments', require('./routes/paymentRoutes'));
 
 // Test route
 app.get('/', (req, res) => {
@@ -56,7 +57,7 @@ app.get('/', (req, res) => {
       require('./models');
       
       // Sync database (creates tables if they don't exist)
-      await sequelize.sync({ alter: false }); // Set to true for development to auto-update tables
+      await sequelize.sync({ alter: true }); // Set to true for development to auto-update tables
       console.log('✅ Database tables synchronized');
       
       // Initialize cron jobs after successful DB connection

@@ -1,5 +1,4 @@
-const Product = require('../models/Product');
-const Admin = require('../models/Admin');
+const { Product, Admin } = require('../models');
 const { Op } = require('sequelize');
 
 // @desc    Get all products
@@ -91,10 +90,13 @@ const getProducts = async (req, res) => {
     }
 
     // Price range filter
-    if (minPrice || maxPrice) {
-      where.discountedPrice = {};
-      if (minPrice) where.discountedPrice[Op.gte] = parseFloat(minPrice);
-      if (maxPrice) where.discountedPrice[Op.lte] = parseFloat(maxPrice);
+    if (minPrice && minPrice !== 'undefined' && !isNaN(parseFloat(minPrice))) {
+      where.discountedPrice = where.discountedPrice || {};
+      where.discountedPrice[Op.gte] = parseFloat(minPrice);
+    }
+    if (maxPrice && maxPrice !== 'undefined' && !isNaN(parseFloat(maxPrice))) {
+      where.discountedPrice = where.discountedPrice || {};
+      where.discountedPrice[Op.lte] = parseFloat(maxPrice);
     }
 
     // Search functionality

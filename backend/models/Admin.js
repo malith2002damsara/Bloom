@@ -44,8 +44,10 @@ const Admin = sequelize.define('Admin', {
   },
   phone: {
     type: DataTypes.STRING(15),
-    allowNull: true,
+    allowNull: false,
+    unique: true,
     validate: {
+      notEmpty: { msg: 'Phone number is required' },
       len: {
         args: [10, 15],
         msg: 'Phone number must be between 10 and 15 characters'

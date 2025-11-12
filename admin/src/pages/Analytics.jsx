@@ -27,7 +27,8 @@ const Analytics = () => {
       if (response.success) {
         setTopProducts(response.data.products || []);
       } else {
-        toast.error('Failed to fetch analytics data');
+        console.warn('No analytics data available');
+        setTopProducts([]);
       }
     } catch (error) {
       console.error('Analytics fetch error:', error);
@@ -35,7 +36,9 @@ const Analytics = () => {
       if (error.message.includes('Invalid token') || error.message.includes('401')) {
         toast.error('Please login to access analytics data');
       } else {
-        toast.error('Failed to load analytics data');
+        // Don't show error toast for empty data
+        console.warn('Analytics data not available');
+        setTopProducts([]);
       }
     } finally {
       setLoading(false);

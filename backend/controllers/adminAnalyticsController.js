@@ -464,21 +464,27 @@ const getTopProducts = async (req, res) => {
     const adminId = req.user.id;
     const { period = 'last_30_days', limit = 10 } = req.query;
 
+    console.log('Getting top products for admin:', adminId);
+    console.log('Period:', period, 'Limit:', limit);
+
     // Calculate date range based on period
     let dateFilter = '';
     const now = new Date();
 
     switch (period) {
+      case '7':
       case 'last_7_days':
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         dateFilter = `AND o."createdAt" >= '${sevenDaysAgo.toISOString()}'`;
         break;
+      case '30':
       case 'last_30_days':
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
         dateFilter = `AND o."createdAt" >= '${thirtyDaysAgo.toISOString()}'`;
         break;
+      case '90':
       case 'last_90_days':
         const ninetyDaysAgo = new Date();
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
@@ -503,6 +509,22 @@ const getTopProducts = async (req, res) => {
         dateFilter = `AND o."createdAt" >= '${defaultDate.toISOString()}'`;
     }
 
+    // First, check if orders table exists and has data
+    const orderCount = await Order.count();
+    console.log('Total orders in database:', orderCount);
+
+    if (orderCount === 0) {
+      console.log('No orders found in database - returning empty result');
+      return res.json({
+        success: true,
+        data: {
+          period,
+          products: [],
+          count: 0
+        }
+      });
+    }
+
     // Get top products by quantity sold using raw SQL
     const topProducts = await sequelize.query(`
       SELECT 
@@ -525,6 +547,8 @@ const getTopProducts = async (req, res) => {
       type: sequelize.QueryTypes.SELECT
     });
 
+    console.log('Found', topProducts.length, 'top products');
+
     // Enrich with product details (ratings, discount, stock)
     const enrichedProducts = await Promise.all(
       topProducts.map(async (item) => {
@@ -536,9 +560,9 @@ const getTopProducts = async (req, res) => {
           productId: item.productId,
           productName: item.productName,
           productImage: item.productImage,
-          totalQuantitySold: parseInt(item.totalQuantitySold),
+          totalQuantity: parseInt(item.totalQuantitySold),
+          totalOrders: parseInt(item.orderCount),
           totalRevenue: Math.round(parseFloat(item.totalRevenue) * 100) / 100,
-          orderCount: parseInt(item.orderCount),
           averageRating: product?.ratingsAverage || 0,
           reviewCount: product?.ratingsCount || 0,
           discount: product?.discount || 0,
@@ -559,6 +583,7 @@ const getTopProducts = async (req, res) => {
 
   } catch (error) {
     console.error('Get top products error:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Server error while fetching top products',

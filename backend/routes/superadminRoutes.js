@@ -22,7 +22,10 @@ const {
   getAllReports,
   getReportDetails,
   generateCustomReport,
-  checkPhoneAvailability
+  checkPhoneAvailability,
+  getAllCommissionPayments,
+  getCommissionPaymentById,
+  verifyCommissionPayment
 } = require('../controllers/superAdminController');
 const { auth, superAdminOnly } = require('../middleware/auth');
 
@@ -66,5 +69,10 @@ router.post('/reports/generate', auth, superAdminOnly, generateCustomReport);
 
 // Phone validation (public)
 router.get('/check-phone', checkPhoneAvailability);
+
+// Commission Payment routes
+router.get('/commission-payments', auth, superAdminOnly, getAllCommissionPayments);
+router.get('/commission-payments/:id', auth, superAdminOnly, getCommissionPaymentById);
+router.put('/commission-payments/:id/verify', auth, superAdminOnly, verifyCommissionPayment);
 
 module.exports = router;

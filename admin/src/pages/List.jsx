@@ -101,6 +101,11 @@ const List = () => {
           'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
         }
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
       
       if (data.success) {
@@ -119,7 +124,13 @@ const List = () => {
       }
     } catch (error) {
       console.error('Error fetching products:', error);
-      toast.error('Failed to fetch products');
+      // Only show toast if not a server connectivity issue
+      if (!error.message.includes('500')) {
+        toast.error('Failed to fetch products: ' + error.message);
+      } else {
+        console.warn('Server error - products may not be available');
+        setProducts([]); // Set empty array to avoid crashes
+      }
     } finally {
       setLoading(false);
     }

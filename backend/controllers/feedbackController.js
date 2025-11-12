@@ -1,7 +1,9 @@
-const Feedback = require('../models/Feedback');
-const Order = require('../models/Order');
-const Product = require('../models/Product');
-const User = require('../models/User');
+const { 
+  Feedback, 
+  Order, 
+  Product, 
+  User 
+} = require('../models');
 const { sequelize } = require('../config/database');
 const { Op } = require('sequelize');
 

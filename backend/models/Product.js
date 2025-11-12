@@ -44,20 +44,6 @@ const Product = sequelize.define('Product', {
     type: DataTypes.DECIMAL(10, 2),
     defaultValue: 0
   },
-  adminDiscount: {
-    type: DataTypes.DECIMAL(5, 2),
-    defaultValue: 0,
-    comment: 'Additional discount set by admin (0-100%)',
-    validate: {
-      min: { args: [0], msg: 'Admin discount cannot be negative' },
-      max: { args: [100], msg: 'Admin discount cannot exceed 100%' }
-    }
-  },
-  finalPrice: {
-    type: DataTypes.DECIMAL(10, 2),
-    defaultValue: 0,
-    comment: 'Final price after all discounts applied'
-  },
   category: {
     type: DataTypes.ENUM('fresh', 'artificial', 'bears', 'mixed'),
     defaultValue: 'fresh',
@@ -198,13 +184,8 @@ const Product = sequelize.define('Product', {
         product.discount = 0;
       }
       
-      // Calculate final price with admin discount
-      let finalPrice = product.price;
-      if (product.adminDiscount > 0) {
-        finalPrice = finalPrice - (finalPrice * product.adminDiscount / 100);
-      }
-      product.finalPrice = Math.round(finalPrice * 100) / 100;
-      product.discountedPrice = product.finalPrice;
+      // Calculate discounted price (same as price for now)
+      product.discountedPrice = product.price;
       
       // Update stock status
       if (product.stock === 0) {

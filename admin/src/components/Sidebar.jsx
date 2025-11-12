@@ -11,7 +11,8 @@ import {
   Phone,
   Mail,
   Lock,
-  User
+  User,
+  CreditCard
 } from 'lucide-react';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import ChangePasswordModal from './ChangePasswordModal';
@@ -28,6 +29,7 @@ const Sidebar = () => {
     { path: '/add-items', icon: Plus, label: 'Add Items' },
     { path: '/list-items', icon: Package, label: 'List Items' },
     { path: '/orders', icon: ShoppingBag, label: 'Orders' },
+    { path: '/payments', icon: CreditCard, label: 'Payments' },
     { path: '/profile', icon: User, label: 'Profile' },
   ];
 

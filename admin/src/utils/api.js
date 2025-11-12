@@ -50,12 +50,23 @@ class AdminApiService {
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        const errorMessage = errorData.message || `Server error (${response.status})`;
+        
+        // Log but don't throw for certain endpoints that may not exist yet
+        if (response.status === 500 || response.status === 404) {
+          console.warn(`API warning for ${endpoint}:`, errorMessage);
+          return { success: false, message: errorMessage, data: null };
+        }
+        
+        throw new Error(errorMessage);
       }
 
       return await response.json();
     } catch (error) {
-      console.error('API request failed:', error);
+      // Only log actual network errors
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        console.error('Network error - check if backend is running:', error);
+      }
       throw error;
     }
   }
