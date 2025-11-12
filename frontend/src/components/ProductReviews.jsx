@@ -230,7 +230,7 @@ const ProductReviews = ({ productId }) => {
               <>
                 <div className="space-y-4 mb-6">
                   {reviews.map((review) => (
-                    <ReviewCard key={review._id} review={review} />
+                    <ReviewCard key={review.id || review._id} review={review} />
                   ))}
                 </div>
 
@@ -304,7 +304,7 @@ const ProductReviews = ({ productId }) => {
             ) : (
               <div className="space-y-4">
                 {topComments.map((review) => (
-                  <ReviewCard key={review._id} review={review} />
+                  <ReviewCard key={review.id || review._id} review={review} />
                 ))}
               </div>
             )}

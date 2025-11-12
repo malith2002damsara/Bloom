@@ -246,7 +246,7 @@ const ProductCard = ({ product }) => {
           {product.ratingsCount > 0 && (
             <div className="absolute top-2 right-2 bg-yellow-400 text-gray-900 px-2 py-1 rounded-md shadow-lg z-10 flex items-center space-x-1">
               <FiStar className="h-3 w-3 fill-current" />
-              <span className="text-xs font-bold">{(product.ratingsAverage || 0).toFixed(1)}</span>
+              <span className="text-xs font-bold">{parseFloat(product.ratingsAverage || 0).toFixed(1)}</span>
             </div>
           )}
         </div>
@@ -591,7 +591,7 @@ const ProductCard = ({ product }) => {
                             </div>
                             <span className="ml-2 text-xs text-gray-600">
                           {product.ratingsCount > 0 ? (
-                                `(${(product.ratingsAverage || 0).toFixed(1)}) • ${product.ratingsCount} reviews`
+                                `(${parseFloat(product.ratingsAverage || 0).toFixed(1)}) • ${product.ratingsCount} reviews`
                               ) : (
                                 'No reviews yet'
                               )}

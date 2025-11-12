@@ -20,26 +20,54 @@ const FeedbackModal = ({ isOpen, onClose, order, productId }) => {
   // Check feedback eligibility when modal opens
   useEffect(() => {
     const checkEligibility = async () => {
-      // Return early if modal is not open or order is not available
-      if (!isOpen || !order || !order._id) {
+      // Return early if modal is not open
+      if (!isOpen) {
+        return;
+      }
+
+      // If order data is not available yet, keep checking state true
+      if (!order) {
+        setCheckingEligibility(true);
+        setIsEligible(false);
+        return;
+      }
+
+      const orderId = order?.id || order?._id;
+      
+      console.log('🔍 FeedbackModal Debug:', {
+        isOpen,
+        hasOrder: !!order,
+        orderId,
+        orderStatus: order?.orderStatus,
+        productId,
+        fullOrder: order
+      });
+      
+      if (!orderId) {
+        console.log('❌ Eligibility check failed: Missing order ID');
         setCheckingEligibility(false);
         setIsEligible(false);
+        setEligibilityMessage('Order information is incomplete.');
         return;
       }
 
       try {
         setCheckingEligibility(true);
         
+        console.log('✅ Order status:', order?.orderStatus);
+        
         // Simple check: if order is delivered, allow feedback
         if (order?.orderStatus?.toLowerCase() === 'delivered') {
+          console.log('✅ Order is delivered - allowing feedback');
           setIsEligible(true);
           setEligibilityMessage('');
           setCheckingEligibility(false);
           return;
         }
         
+        console.log('⚠️ Order not delivered, checking via API...');
         // If not delivered, check via API for detailed status
-        const response = await apiService.checkFeedbackEligibility(order._id);
+        const response = await apiService.checkFeedbackEligibility(orderId);
         
         // Backend returns response.data.canSubmit
         if (response.data?.canSubmit || response.success) {
@@ -75,7 +103,7 @@ const FeedbackModal = ({ isOpen, onClose, order, productId }) => {
     };
 
     checkEligibility();
-  }, [isOpen, order]);
+  }, [isOpen, order, productId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -105,7 +133,8 @@ const FeedbackModal = ({ isOpen, onClose, order, productId }) => {
     }
 
     // Validate order and product data
-    if (!order?._id) {
+    const orderId = order?.id || order?._id;
+    if (!orderId) {
       toast.error('Order information is missing. Please try again.', {
         position: "top-right",
         autoClose: 3000,
@@ -125,14 +154,14 @@ const FeedbackModal = ({ isOpen, onClose, order, productId }) => {
       setIsSubmitting(true);
       
       console.log('Submitting feedback with data:', {
-        orderId: order._id,
+        orderId: orderId,
         productId: productId,
         rating: rating,
         comment: comment.trim()
       });
       
       await apiService.submitFeedback({
-        orderId: order._id,
+        orderId: orderId,
         productId: productId,
         rating: rating,
         comment: comment.trim()
