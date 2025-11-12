@@ -13,10 +13,11 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
   },
   logging: process.env.NODE_ENV === 'development' ? console.log : false,
   pool: {
-    max: 10,
+    max: process.env.VERCEL ? 2 : 10, // Limit connections for serverless
     min: 0,
     acquire: 30000,
-    idle: 10000
+    idle: process.env.VERCEL ? 1000 : 10000, // Shorter idle time for serverless
+    evict: 1000 // Check for idle connections every second
   }
 });
 

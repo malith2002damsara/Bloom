@@ -236,7 +236,14 @@ async function generateMonthlyReport() {
 
 // Initialize cron jobs
 function initializeCronJobs() {
-  console.log('⏰ Initializing cron jobs...\n');
+  // Don't run cron jobs on Vercel serverless
+  if (process.env.VERCEL) {
+    console.log('⚠️  Cron jobs disabled on Vercel serverless environment');
+    console.log('   Consider using Vercel Cron Jobs or external cron service');
+    return;
+  }
+
+  console.log('\n⏰ Initializing cron jobs...\n');
 
   // Run at midnight on the last day of each month (28-31)
   // This ensures it runs on the actual last day regardless of month length
