@@ -19,7 +19,8 @@ app.use(cors({
     'http://localhost:3002',
     'http://localhost:3003',
     'https://bloom-f4qt.vercel.app',
-    'https://bloom-beta-mauve.vercel.app'
+    'https://bloom-beta-mauve.vercel.app',
+    'https://bloomsuper.vercel.app'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
