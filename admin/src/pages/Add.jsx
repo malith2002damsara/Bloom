@@ -116,7 +116,12 @@ const Add = () => {
         flowerCount: '',
         price: '',
         oldPrice: '',
-        dimensions: { height: '', width: '', depth: '' }
+        discount: 0,
+        dimensions: { 
+          height: '', 
+          width: '', 
+          depth: '' 
+        }
       }]
     }));
   };
@@ -126,17 +131,33 @@ const Add = () => {
       ...prev,
       sizes: prev.sizes.map((item, i) => {
         if (i === index) {
+          let updatedItem;
           if (field.includes('.')) {
             const [parent, child] = field.split('.');
-            return {
+            updatedItem = {
               ...item,
               [parent]: {
                 ...item[parent],
                 [child]: value
               }
             };
+          } else {
+            updatedItem = { ...item, [field]: value };
           }
-          return { ...item, [field]: value };
+          
+          // Auto-calculate discount when price or oldPrice changes
+          if (field === 'price' || field === 'oldPrice') {
+            const price = parseFloat(field === 'price' ? value : updatedItem.price) || 0;
+            const oldPrice = parseFloat(field === 'oldPrice' ? value : updatedItem.oldPrice) || 0;
+            
+            if (oldPrice > 0 && price > 0 && price < oldPrice) {
+              updatedItem.discount = Math.round(((oldPrice - price) / oldPrice) * 100 * 100) / 100;
+            } else {
+              updatedItem.discount = 0;
+            }
+          }
+          
+          return updatedItem;
         }
         return item;
       })
@@ -269,17 +290,33 @@ const Add = () => {
         ...prev.bearDetails,
         sizes: prev.bearDetails.sizes.map((item, i) => {
           if (i === index) {
+            let updatedItem;
             if (field.includes('.')) {
               const [parent, child] = field.split('.');
-              return {
+              updatedItem = {
                 ...item,
                 [parent]: {
                   ...item[parent],
                   [child]: value
                 }
               };
+            } else {
+              updatedItem = { ...item, [field]: value };
             }
-            return { ...item, [field]: value };
+            
+            // Auto-calculate discount when price or oldPrice changes
+            if (field === 'price' || field === 'oldPrice') {
+              const price = parseFloat(field === 'price' ? value : updatedItem.price) || 0;
+              const oldPrice = parseFloat(field === 'oldPrice' ? value : updatedItem.oldPrice) || 0;
+              
+              if (oldPrice > 0 && price > 0 && price < oldPrice) {
+                updatedItem.discount = Math.round(((oldPrice - price) / oldPrice) * 100 * 100) / 100;
+              } else {
+                updatedItem.discount = 0;
+              }
+            }
+            
+            return updatedItem;
           }
           return item;
         })

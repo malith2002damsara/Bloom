@@ -1,303 +1,57 @@
 const { Product, Admin } = require('../models');
 const { Op } = require('sequelize');
 
-// @desc    Get all products
-// @route   GET /api/products
-// @access  Public
-const getProducts = async (req, res) => {
-  try {
-    const { 
-      category, 
-      search, 
-      sortBy, 
-      page = 1, 
-      limit = 20, 
-      adminId, 
-      adminCode,
-      minPrice,
-      maxPrice 
-    } = req.query;
+// Helper function to process sizes with all data
+const processSizes = (sizes) => {
+  return sizes.map(size => {
+    const price = parseFloat(size.price || 0);
+    const oldPrice = parseFloat(size.oldPrice || 0);
+    let discount = 0;
     
-    console.log('=== GET PRODUCTS REQUEST ===');
-    console.log('Query params:', { category, search, sortBy, page, limit, adminId, adminCode, minPrice, maxPrice });
+    // Calculate discount percentage
+    if (oldPrice > 0 && price > 0 && price < oldPrice) {
+      discount = Math.round(((oldPrice - price) / oldPrice) * 100 * 100) / 100;
+    }
     
-    // Build where clause for Sequelize
-    const where = {};
-
-    // IMPORTANT: Only show products from ACTIVE admins (exclude deactivated admins)
-    // Get all active admin IDs
-    const activeAdmins = await Admin.findAll({ 
-      where: { isActive: true },
-      attributes: ['id', 'adminCode']
-    });
-    const activeAdminIds = activeAdmins.map(admin => admin.id);
-    
-    console.log(`Found ${activeAdmins.length} active admins`);
-    
-    // Filter products to only show those from active admins
-    where.adminId = { [Op.in]: activeAdminIds };
-
-    // Filter by specific admin ID (for admin users to see only their products)
-    if (adminId) {
-      // Check if this specific admin is active
-      const isAdminActive = activeAdminIds.some(id => id === adminId);
-      if (!isAdminActive) {
-        console.log(`Admin ${adminId} is not active - returning no products`);
-        return res.json({
-          success: true,
-          message: 'No products found',
-          data: {
-            products: [],
-            pagination: {
-              page: parseInt(page),
-              limit: parseInt(limit),
-              total: 0,
-              pages: 0
-            }
-          }
-        });
+    return {
+      size: size.size,
+      flowerCount: size.flowerCount ? parseInt(size.flowerCount) : undefined,
+      price: price,
+      oldPrice: oldPrice,
+      discount: discount,
+      dimensions: {
+        height: size.dimensions?.height ? parseFloat(size.dimensions.height) : 0,
+        width: size.dimensions?.width ? parseFloat(size.dimensions.width) : 0,
+        depth: size.dimensions?.depth ? parseFloat(size.dimensions.depth) : 0
       }
-      where.adminId = adminId;
-    }
-    
-    // Filter by Admin Code (for customers to see only specific seller's products)
-    if (adminCode) {
-      const admin = activeAdmins.find(a => a.adminCode === adminCode.toUpperCase());
-      if (admin) {
-        where.adminId = admin.id;
-        console.log(`Filtering by admin code: ${adminCode} -> Admin ID: ${admin.id}`);
-      } else {
-        console.log(`Admin code ${adminCode} not found - returning no products`);
-        return res.json({
-          success: true,
-          message: 'No products found for this admin code',
-          data: {
-            products: [],
-            pagination: {
-              page: parseInt(page),
-              limit: parseInt(limit),
-              total: 0,
-              pages: 0
-            }
-          }
-        });
-      }
-    }
-
-    // Filter by category
-    if (category && category !== 'all') {
-      where.category = category;
-    }
-
-    // Price range filter
-    if (minPrice && minPrice !== 'undefined' && !isNaN(parseFloat(minPrice))) {
-      where.discountedPrice = where.discountedPrice || {};
-      where.discountedPrice[Op.gte] = parseFloat(minPrice);
-    }
-    if (maxPrice && maxPrice !== 'undefined' && !isNaN(parseFloat(maxPrice))) {
-      where.discountedPrice = where.discountedPrice || {};
-      where.discountedPrice[Op.lte] = parseFloat(maxPrice);
-    }
-
-    // Search functionality
-    if (search) {
-      where[Op.or] = [
-        { name: { [Op.iLike]: `%${search}%` } },
-        { description: { [Op.iLike]: `%${search}%` } }
-      ];
-    }
-
-    // Build sort array for Sequelize
-    let order = [['createdAt', 'DESC']]; // Default: newest first
-    if (sortBy) {
-      switch (sortBy) {
-        case 'price-low':
-          order = [['discountedPrice', 'ASC']];
-          break;
-        case 'price-high':
-          order = [['discountedPrice', 'DESC']];
-          break;
-        case 'name-asc':
-          order = [['name', 'ASC']];
-          break;
-        case 'name-desc':
-          order = [['name', 'DESC']];
-          break;
-        case 'rating':
-          order = [['ratingsAverage', 'DESC']];
-          break;
-        case 'discount':
-          order = [['discount', 'DESC']];
-          break;
-        default:
-          order = [['createdAt', 'DESC']];
-          break;
-      }
-    }
-
-    // Calculate pagination
-    const pageNumber = parseInt(page);
-    const limitNumber = parseInt(limit);
-    const offset = (pageNumber - 1) * limitNumber;
-
-    console.log('Final where:', JSON.stringify(where));
-
-    // Execute query with pagination
-    const { count, rows } = await Product.findAndCountAll({
-      where,
-      order,
-      offset,
-      limit: limitNumber
-    });
-
-    console.log(`Returned ${rows.length} products from active admins (total: ${count})`);
-
-    res.json({
-      success: true,
-      message: 'Products retrieved successfully',
-      data: {
-        products: rows,
-        pagination: {
-          page: pageNumber,
-          limit: limitNumber,
-          total: count,
-          pages: Math.ceil(count / limitNumber)
-        }
-      }
-    });
-
-  } catch (error) {
-    console.error('Get products error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while retrieving products',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
+    };
+  });
 };
 
-// @desc    Get single product
-// @route   GET /api/products/:id
-// @access  Public
-const getProductById = async (req, res) => {
-  try {
-    const productId = req.params.id;
+// Helper function to process bear sizes
+const processBearSizes = (sizes) => {
+  return sizes.map(size => {
+    const price = parseFloat(size.price || 0);
+    const oldPrice = parseFloat(size.oldPrice || 0);
+    let discount = 0;
     
-    console.log('=== GET PRODUCT BY ID ===');
-    console.log('Product ID:', productId);
+    // Calculate discount percentage
+    if (oldPrice > 0 && price > 0 && price < oldPrice) {
+      discount = Math.round(((oldPrice - price) / oldPrice) * 100 * 100) / 100;
+    }
     
-    // Validate ObjectId format
-    if (!productId.match(/^[0-9a-fA-F]{24}$/)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid product ID format'
-      });
-    }
-
-    const product = await Product.findByPk(productId);
-
-    if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found'
-      });
-    }
-
-    // IMPORTANT: Check if the product's admin is active
-    const admin = await Admin.findByPk(product.adminId);
-    
-    if (!admin || !admin.isActive) {
-      console.log(`Product ${productId} belongs to inactive admin - not accessible`);
-      return res.status(404).json({
-        success: false,
-        message: 'Product not available'
-      });
-    }
-
-    console.log(`Product ${productId} from active admin ${admin.name} - accessible`);
-
-    res.json({
-      success: true,
-      message: 'Product retrieved successfully',
-      data: {
-        product
+    return {
+      size: size.size,
+      price: price,
+      oldPrice: oldPrice,
+      discount: discount,
+      dimensions: {
+        height: size.dimensions?.height ? parseFloat(size.dimensions.height) : 0,
+        width: size.dimensions?.width ? parseFloat(size.dimensions.width) : 0,
+        depth: size.dimensions?.depth ? parseFloat(size.dimensions.depth) : 0
       }
-    });
-
-  } catch (error) {
-    console.error('Get product by ID error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while retrieving product',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-};
-
-// @desc    Get product categories
-// @route   GET /api/products/categories
-// @access  Public
-const getCategories = async (req, res) => {
-  try {
-    console.log('=== GET CATEGORIES ===');
-    
-    // IMPORTANT: Only count products from ACTIVE admins
-    const activeAdmins = await Admin.findAll({ 
-      where: { isActive: true },
-      attributes: ['id']
-    });
-    const activeAdminIds = activeAdmins.map(admin => admin.id);
-    
-    console.log(`Counting products from ${activeAdmins.length} active admins`);
-
-    // Get category counts - Sequelize syntax
-    const categories = await Product.findAll({
-      where: { adminId: { [Op.in]: activeAdminIds } },
-      attributes: [
-        'category',
-        [require('sequelize').fn('COUNT', require('sequelize').col('id')), 'count']
-      ],
-      group: ['category'],
-      raw: true
-    });
-
-    // Get total count (only from active admins)
-    const totalCount = await Product.count({
-      where: { adminId: { [Op.in]: activeAdminIds } }
-    });
-
-    // Build categories array
-    const categoryMap = {};
-    categories.forEach(cat => {
-      categoryMap[cat.category] = parseInt(cat.count || 0);
-    });
-
-    const categoryList = [
-      { id: 'all', name: 'All Products', count: totalCount },
-      { id: 'fresh', name: 'Fresh Flowers', count: categoryMap.fresh || 0 },
-      { id: 'artificial', name: 'Artificial Flowers', count: categoryMap.artificial || 0 },
-      { id: 'bears', name: 'Graduation Bears', count: categoryMap.bears || 0 },
-      { id: 'mixed', name: 'Mixed Arrangements', count: categoryMap.mixed || 0 }
-    ];
-
-    console.log('Category counts:', categoryList);
-
-    res.json({
-      success: true,
-      message: 'Categories retrieved successfully',
-      data: {
-        categories: categoryList
-      }
-    });
-
-  } catch (error) {
-    console.error('Get categories error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while retrieving categories',  
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
+    };
+  });
 };
 
 // @desc    Create new product (Admin only)
@@ -313,14 +67,17 @@ const createProduct = async (req, res) => {
       numberOfFlowers,
       freshFlowerSelections,
       artificialFlowerSelections,
-      flowerSelections, // Legacy support
+      flowerSelections,
       sizes,
       dimensions,
       bearDetails,
       seller
     } = req.body;
 
-    // Validate required fields (removed price from validation)
+    console.log('📥 === CREATE PRODUCT REQUEST ===');
+    console.log('Category:', category);
+
+    // Validate required fields
     if (!name || !category || !seller) {
       return res.status(400).json({
         success: false,
@@ -328,7 +85,7 @@ const createProduct = async (req, res) => {
       });
     }
 
-    // Parse JSON strings if they exist
+    // Parse JSON strings
     let parsedFreshFlowerSelections = [];
     let parsedArtificialFlowerSelections = [];
     let parsedFlowerSelections = [];
@@ -380,6 +137,7 @@ const createProduct = async (req, res) => {
           : seller;
       }
     } catch (parseError) {
+      console.error('JSON parse error:', parseError);
       return res.status(400).json({
         success: false,
         message: 'Invalid JSON format in request data'
@@ -394,7 +152,29 @@ const createProduct = async (req, res) => {
       });
     }
 
-    // Category-specific validation
+    // Handle uploaded images from Cloudinary
+    const imagePaths = [];
+    if (req.files && req.files.length > 0) {
+      req.files.forEach((file) => {
+        if (file.path) {
+          imagePaths.push(file.path);
+        }
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'At least one product image is required'
+      });
+    }
+
+    let basePrice = 0;
+    let baseOldPrice = 0;
+    let baseDiscount = 0;
+    let processedSizes = [];
+    let processedBearDetails = {};
+    let totalFlowers = 0;
+
+    // Category-specific processing
     if (category === 'bears') {
       // Validate bear details
       if (!parsedBearDetails.sizes || parsedBearDetails.sizes.length === 0) {
@@ -411,14 +191,31 @@ const createProduct = async (req, res) => {
         });
       }
 
-      // Validate that all bear sizes have prices
-      const invalidBearSize = parsedBearDetails.sizes.find(size => !size.price || size.price <= 0);
+      // Process bear sizes with all data
+      const bearSizes = processBearSizes(parsedBearDetails.sizes);
+      
+      // Validate prices
+      const invalidBearSize = bearSizes.find(size => !size.price || size.price <= 0);
       if (invalidBearSize) {
         return res.status(400).json({
           success: false,
           message: `Please add a valid price for ${invalidBearSize.size} bear size`
         });
       }
+
+      // Find lowest price for base price
+      basePrice = Math.min(...bearSizes.map(s => s.price));
+      const lowestPriceItem = bearSizes.find(s => s.price === basePrice);
+      baseOldPrice = lowestPriceItem.oldPrice;
+      baseDiscount = lowestPriceItem.discount;
+
+      processedBearDetails = {
+        sizes: bearSizes,
+        colors: parsedBearDetails.colors
+      };
+
+      console.log('🐻 Processed Bear Details:', JSON.stringify(processedBearDetails, null, 2));
+
     } else {
       // Validate flower bouquet data
       if (!parsedSizes || parsedSizes.length === 0) {
@@ -428,14 +225,28 @@ const createProduct = async (req, res) => {
         });
       }
 
-      // Validate that all sizes have prices
-      const invalidSize = parsedSizes.find(size => !size.price || size.price <= 0);
+      // Process sizes with all data
+      processedSizes = processSizes(parsedSizes);
+      
+      // Validate prices
+      const invalidSize = processedSizes.find(size => !size.price || size.price <= 0);
       if (invalidSize) {
         return res.status(400).json({
           success: false,
           message: `Please add a valid price for ${invalidSize.size} size`
         });
       }
+
+      // Find lowest price for base price
+      basePrice = Math.min(...processedSizes.map(s => s.price));
+      const lowestPriceItem = processedSizes.find(s => s.price === basePrice);
+      baseOldPrice = lowestPriceItem.oldPrice;
+      baseDiscount = lowestPriceItem.discount;
+
+      // Calculate total flowers
+      totalFlowers = processedSizes.reduce((total, size) => {
+        return total + (parseInt(size.flowerCount) || 0);
+      }, 0);
 
       // Category-specific flower validation
       if (category === 'fresh') {
@@ -446,7 +257,6 @@ const createProduct = async (req, res) => {
           });
         }
         
-        // Validate that each flower selection has colors
         const invalidFlower = parsedFreshFlowerSelections.find(selection => 
           !selection.colors || selection.colors.length === 0
         );
@@ -464,7 +274,6 @@ const createProduct = async (req, res) => {
           });
         }
         
-        // Validate that each flower selection has colors
         const invalidFlower = parsedArtificialFlowerSelections.find(selection => 
           !selection.colors || selection.colors.length === 0
         );
@@ -479,141 +288,265 @@ const createProduct = async (req, res) => {
             (!parsedArtificialFlowerSelections || parsedArtificialFlowerSelections.length === 0)) {
           return res.status(400).json({
             success: false,
-            message: 'At least one fresh or artificial flower selection is required for mixed arrangements'
-          });
-        }
-        
-        // Validate colors for both types
-        const invalidFreshFlower = parsedFreshFlowerSelections.find(selection => 
-          selection.colors && selection.colors.length === 0
-        );
-        const invalidArtificialFlower = parsedArtificialFlowerSelections.find(selection => 
-          selection.colors && selection.colors.length === 0
-        );
-        
-        if (invalidFreshFlower) {
-          return res.status(400).json({
-            success: false,
-            message: `Please select colors for fresh ${invalidFreshFlower.flower}`
-          });
-        }
-        
-        if (invalidArtificialFlower) {
-          return res.status(400).json({
-            success: false,
-            message: `Please select colors for artificial ${invalidArtificialFlower.flower}`
+            message: 'At least one fresh or artificial flower selection is required'
           });
         }
       }
+
+      console.log('💐 Processed Sizes:', JSON.stringify(processedSizes, null, 2));
     }
 
-    // Handle uploaded images from Cloudinary
-    const imagePaths = [];
-    if (req.files && req.files.length > 0) {
-      req.files.forEach((file) => {
-        if (file.path) {
-          // Cloudinary returns the full URL in file.path
-          imagePaths.push(file.path);
-        }
-      });
-    } else {
-      return res.status(400).json({
-        success: false,
-        message: 'At least one product image is required'
-      });
-    }
-
-    // Calculate base price from sizes (lowest price for display purposes)
-    let basePrice = 0;
-    if (category === 'bears' && parsedBearDetails.sizes && parsedBearDetails.sizes.length > 0) {
-      basePrice = Math.min(...parsedBearDetails.sizes.map(size => parseFloat(size.price || 0)));
-    } else if (parsedSizes && parsedSizes.length > 0) {
-      basePrice = Math.min(...parsedSizes.map(size => parseFloat(size.price || 0)));
-    }
-
-    // Calculate total number of flowers for flower bouquets
-    let totalFlowers = 0;
-    if (category !== 'bears' && parsedSizes) {
-      totalFlowers = parsedSizes.reduce((total, size) => {
-        const flowerCount = parseInt(size.flowerCount || 0);
-        return total + flowerCount;
-      }, 0);
-    }
-
-    // Get admin ID from request (set by auth middleware)
+    // Get admin ID from request
     const adminId = req.user.id;
 
-    // Create new product using Sequelize
-    const product = await Product.create({
+    // Helper function to populate size-specific columns
+    const populateSizeColumns = (sizes, sizeName) => {
+      // Normalize both for comparison (remove spaces, lowercase)
+      const normalizedSizeName = sizeName.toLowerCase().replace(/\s+/g, '');
+      const sizeData = sizes.find(s => s.size.toLowerCase().replace(/\s+/g, '') === normalizedSizeName);
+      if (!sizeData) return {};
+      
+      // Keep camelCase for column names (e.g., 'extraLarge' not 'extralarge')
+      const prefix = sizeName.charAt(0).toLowerCase() + sizeName.slice(1).replace(/\s+/g, '');
+      const savings = sizeData.oldPrice > sizeData.price ? sizeData.oldPrice - sizeData.price : 0;
+      
+      return {
+        [`${prefix}Price`]: sizeData.price,
+        [`${prefix}OldPrice`]: sizeData.oldPrice,
+        [`${prefix}Discount`]: sizeData.discount,
+        [`${prefix}DiscountedPrice`]: savings, // Savings amount (oldPrice - price)
+        [`${prefix}FlowerCount`]: sizeData.flowerCount || null,
+        [`${prefix}DimensionsHeight`]: sizeData.dimensions?.height || null,
+        [`${prefix}DimensionsWidth`]: sizeData.dimensions?.width || null,
+        [`${prefix}DimensionsDepth`]: sizeData.dimensions?.depth || null,
+      };
+    };
+
+    // Populate individual size columns for flower bouquets
+    let sizeSpecificColumns = {};
+    if (category !== 'bears' && processedSizes.length > 0) {
+      // Small size columns
+      sizeSpecificColumns = {
+        ...sizeSpecificColumns,
+        ...populateSizeColumns(processedSizes, 'small')
+      };
+      
+      // Medium size columns
+      sizeSpecificColumns = {
+        ...sizeSpecificColumns,
+        ...populateSizeColumns(processedSizes, 'medium')
+      };
+      
+      // Large size columns
+      sizeSpecificColumns = {
+        ...sizeSpecificColumns,
+        ...populateSizeColumns(processedSizes, 'large')
+      };
+      
+      // Extra Large size columns
+      sizeSpecificColumns = {
+        ...sizeSpecificColumns,
+        ...populateSizeColumns(processedSizes, 'extraLarge')
+      };
+    } else if (category === 'bears' && processedBearDetails.sizes?.length > 0) {
+      // For bears, use their size data
+      sizeSpecificColumns = {
+        ...sizeSpecificColumns,
+        ...populateSizeColumns(processedBearDetails.sizes, 'small')
+      };
+      
+      sizeSpecificColumns = {
+        ...sizeSpecificColumns,
+        ...populateSizeColumns(processedBearDetails.sizes, 'medium')
+      };
+      
+      sizeSpecificColumns = {
+        ...sizeSpecificColumns,
+        ...populateSizeColumns(processedBearDetails.sizes, 'large')
+      };
+    }
+
+    // Prepare complete product data object
+    const productData = {
+      // Basic Info (Columns 1-4)
       name: name.trim(),
       description: description ? description.trim() : '',
+      
+      // Pricing Info - Base prices from lowest-priced size (Columns 5-8)
       price: basePrice,
+      oldPrice: baseOldPrice,
+      discount: baseDiscount,
+      discountedPrice: baseOldPrice > basePrice ? baseOldPrice - basePrice : 0,
+      
+      // Category & Occasion (Columns 9-10)
       category,
       occasion: occasion || '',
+      
+      // Media (Column 11)
       images: imagePaths,
+      
+      // Dimensions - General product dimensions (Columns 12-14)
       dimensionsHeight: parsedDimensions.height ? parseFloat(parsedDimensions.height) : 0,
       dimensionsWidth: parsedDimensions.width ? parseFloat(parsedDimensions.width) : 0,
       dimensionsDepth: parsedDimensions.depth ? parseFloat(parsedDimensions.depth) : 0,
+      
+      // Flower Count (Column 15)
       numberOfFlowers: totalFlowers,
+      
+      // Size-specific data with individual prices & dimensions (Column 16)
+      sizes: category === 'bears' ? [] : processedSizes,
+      
+      // SEPARATE SIZE COLUMNS - Individual columns for each size
+      ...sizeSpecificColumns,
+      
+      // Flower Selections (Columns 17-19)
+      freshFlowerSelections: category !== 'bears' ? (parsedFreshFlowerSelections || []) : [],
+      artificialFlowerSelections: category !== 'bears' ? (parsedArtificialFlowerSelections || []) : [],
+      flowerSelections: category !== 'bears' && parsedFlowerSelections.length > 0 ? parsedFlowerSelections : [],
+      
+      // Bear-specific data with sizes & colors (Column 20)
+      bearDetails: category === 'bears' ? processedBearDetails : {},
+      
+      // Seller Info (Columns 21-23)
       sellerName: parsedSeller.name.trim(),
       sellerContact: parsedSeller.contact.trim(),
       adminId: adminId,
+      
+      // Stock Management (Columns 24-26)
       inStock: true,
       stock: 10,
-      ...(category === 'bears' ? {
-        bearDetails: {
-          sizes: parsedBearDetails.sizes.map(size => ({
-            ...size,
-            price: parseFloat(size.price) || 0,
-            oldPrice: parseFloat(size.oldPrice) || 0,
-            dimensions: {
-              height: size.dimensions?.height ? parseFloat(size.dimensions.height) : 0,
-              width: size.dimensions?.width ? parseFloat(size.dimensions.width) : 0,
-              depth: size.dimensions?.depth ? parseFloat(size.dimensions.depth) : 0
-            }
-          })),
-          colors: parsedBearDetails.colors || []
-        }
-      } : {
-        sizes: parsedSizes.map(size => ({
-          ...size,
-          price: parseFloat(size.price) || 0,
-          oldPrice: parseFloat(size.oldPrice) || 0,
-          dimensions: {
-            height: size.dimensions?.height ? parseFloat(size.dimensions.height) : 0,
-            width: size.dimensions?.width ? parseFloat(size.dimensions.width) : 0,
-            depth: size.dimensions?.depth ? parseFloat(size.dimensions.depth) : 0
-          }
-        })),
-        freshFlowerSelections: parsedFreshFlowerSelections || [],
-        artificialFlowerSelections: parsedArtificialFlowerSelections || [],
-        flowerSelections: parsedFlowerSelections.length > 0 ? parsedFlowerSelections : []
-      })
+      status: 'active',
+      
+      // Sales & Ratings - Auto-initialized (Columns 27-30)
+      // ratingsAverage: 0 (default),
+      // ratingsCount: 0 (default),
+      // salesCount: 0 (default),
+      // salesRevenue: 0 (default)
+      
+      // Timestamps: createdAt, updatedAt (Columns 31-32) - Auto-generated by Sequelize
+    };
+
+    console.log('💾 === SAVING PRODUCT TO DATABASE ===');
+    console.log('📋 Complete Product Data Structure:');
+    console.log('  ├─ Basic: name, description, category, occasion');
+    console.log('  ├─ Pricing: price=' + basePrice + ', oldPrice=' + baseOldPrice + ', discount=' + baseDiscount + '%');
+    console.log('  ├─ Dimensions: H=' + productData.dimensionsHeight + ', W=' + productData.dimensionsWidth + ', D=' + productData.dimensionsDepth);
+    console.log('  ├─ Images: ' + imagePaths.length + ' files');
+    console.log('  ├─ Sizes: ' + (category === 'bears' ? processedBearDetails.sizes?.length : processedSizes.length) + ' sizes with individual prices & dimensions');
+    console.log('  ├─ Size-specific columns populated: Small=' + !!productData.smallPrice + ', Medium=' + !!productData.mediumPrice + ', Large=' + !!productData.largePrice + ', XL=' + !!productData.extralargePrice);
+    console.log('  ├─ Flowers: Fresh=' + (parsedFreshFlowerSelections?.length || 0) + ', Artificial=' + (parsedArtificialFlowerSelections?.length || 0));
+    console.log('  ├─ Seller: ' + parsedSeller.name + ' (' + parsedSeller.contact + ')');
+    console.log('  └─ Stock: ' + productData.stock + ' units, status=' + productData.status);
+
+    // Create product in database
+    const product = await Product.create(productData);
+
+    console.log('✅ === PRODUCT SUCCESSFULLY CREATED ===');
+    console.log('📦 Product ID:', product.id);
+    console.log('💰 Base Pricing:', {
+      price: product.price,
+      oldPrice: product.oldPrice,
+      discount: product.discount + '%',
+      discountedPrice: product.discountedPrice
     });
+    console.log('📐 General Dimensions:', {
+      height: product.dimensionsHeight,
+      width: product.dimensionsWidth,
+      depth: product.dimensionsDepth
+    });
+    
+    // Log separate size columns
+    console.log('📊 SEPARATE SIZE COLUMNS (Individual Database Columns):');
+    if (product.smallPrice) {
+      console.log('  ├─ SMALL:', {
+        price: product.smallPrice,
+        oldPrice: product.smallOldPrice,
+        discount: product.smallDiscount + '%',
+        discountedPrice: product.smallDiscountedPrice,
+        flowerCount: product.smallFlowerCount,
+        dimensions: {
+          height: product.smallDimensionsHeight,
+          width: product.smallDimensionsWidth,
+          depth: product.smallDimensionsDepth
+        }
+      });
+    }
+    if (product.mediumPrice) {
+      console.log('  ├─ MEDIUM:', {
+        price: product.mediumPrice,
+        oldPrice: product.mediumOldPrice,
+        discount: product.mediumDiscount + '%',
+        discountedPrice: product.mediumDiscountedPrice,
+        flowerCount: product.mediumFlowerCount,
+        dimensions: {
+          height: product.mediumDimensionsHeight,
+          width: product.mediumDimensionsWidth,
+          depth: product.mediumDimensionsDepth
+        }
+      });
+    }
+    if (product.largePrice) {
+      console.log('  ├─ LARGE:', {
+        price: product.largePrice,
+        oldPrice: product.largeOldPrice,
+        discount: product.largeDiscount + '%',
+        discountedPrice: product.largeDiscountedPrice,
+        flowerCount: product.largeFlowerCount,
+        dimensions: {
+          height: product.largeDimensionsHeight,
+          width: product.largeDimensionsWidth,
+          depth: product.largeDimensionsDepth
+        }
+      });
+    }
+    if (product.extraLargePrice) {
+      console.log('  └─ EXTRA LARGE:', {
+        price: product.extraLargePrice,
+        oldPrice: product.extraLargeOldPrice,
+        discount: product.extraLargeDiscount + '%',
+        discountedPrice: product.extraLargeDiscountedPrice,
+        flowerCount: product.extraLargeFlowerCount,
+        dimensions: {
+          height: product.extraLargeDimensionsHeight,
+          width: product.extraLargeDimensionsWidth,
+          depth: product.extraLargeDimensionsDepth
+        }
+      });
+    }
+    
+    console.log('📋 JSONB Sizes Array:', category === 'bears' 
+      ? product.bearDetails.sizes 
+      : product.sizes.map(s => ({
+          size: s.size,
+          price: s.price,
+          oldPrice: s.oldPrice,
+          discount: s.discount + '%',
+          dimensions: s.dimensions
+        }))
+    );
+    console.log('🎯 All database columns populated successfully!');
+    console.log('✅ Both JSONB array AND separate columns stored!');
 
     res.status(201).json({
       success: true,
       message: `${category === 'bears' ? 'Bear product' : 'Flower bouquet'} created successfully`,
-      data: {
-        product
-      }
+      data: { product }
     });
 
   } catch (error) {
-    console.error('Create product error:', error);
+    console.error('❌ Create product error:', error);
     
-    // Clean up uploaded files on Cloudinary if product creation fails
+    // Clean up uploaded files on error
     if (req.files && req.files.length > 0) {
       const { cloudinary } = require('../middleware/upload');
       req.files.forEach(async (file) => {
         try {
-          // Extract public_id from the Cloudinary URL
           const publicId = file.filename || file.public_id;
           if (publicId) {
             await cloudinary.uploader.destroy(publicId);
           }
         } catch (deleteError) {
-          console.error('Error deleting Cloudinary file:', deleteError);
+          console.error('Error deleting file:', deleteError);
         }
       });
     }
@@ -646,18 +579,19 @@ const updateProduct = async (req, res) => {
       description,
       category,
       occasion,
-      numberOfFlowers,
       freshFlowerSelections,
       artificialFlowerSelections,
-      flowerSelections, // Legacy support
+      flowerSelections,
       sizes,
       dimensions,
       bearDetails,
-      seller,
-      discount
+      seller
     } = req.body;
 
-    // Check if product exists and belongs to this admin
+    console.log('📝 === UPDATE PRODUCT REQUEST ===');
+    console.log('Product ID:', productId);
+
+    // Check if product exists
     const existingProduct = await Product.findByPk(productId);
     if (!existingProduct) {
       return res.status(404).json({
@@ -666,7 +600,7 @@ const updateProduct = async (req, res) => {
       });
     }
 
-    // Verify product belongs to this admin (unless superadmin)
+    // Verify permissions
     if (req.user.role !== 'superadmin' && existingProduct.adminId !== req.user.id) {
       return res.status(403).json({
         success: false,
@@ -674,56 +608,35 @@ const updateProduct = async (req, res) => {
       });
     }
 
-    // Parse JSON strings if they exist
-    let parsedFreshFlowerSelections = [];
-    let parsedArtificialFlowerSelections = [];
-    let parsedFlowerSelections = [];
-    let parsedSizes = [];
-    let parsedDimensions = {};
-    let parsedBearDetails = {};
-    let parsedSeller = {};
+    // Parse JSON strings
+    let parsedFreshFlowerSelections, parsedArtificialFlowerSelections;
+    let parsedFlowerSelections, parsedSizes, parsedDimensions;
+    let parsedBearDetails, parsedSeller;
 
     try {
       if (freshFlowerSelections) {
         parsedFreshFlowerSelections = typeof freshFlowerSelections === 'string' 
-          ? JSON.parse(freshFlowerSelections) 
-          : freshFlowerSelections;
+          ? JSON.parse(freshFlowerSelections) : freshFlowerSelections;
       }
-      
       if (artificialFlowerSelections) {
         parsedArtificialFlowerSelections = typeof artificialFlowerSelections === 'string' 
-          ? JSON.parse(artificialFlowerSelections) 
-          : artificialFlowerSelections;
+          ? JSON.parse(artificialFlowerSelections) : artificialFlowerSelections;
       }
-      
       if (flowerSelections) {
         parsedFlowerSelections = typeof flowerSelections === 'string' 
-          ? JSON.parse(flowerSelections) 
-          : flowerSelections;
+          ? JSON.parse(flowerSelections) : flowerSelections;
       }
-      
       if (sizes) {
-        parsedSizes = typeof sizes === 'string' 
-          ? JSON.parse(sizes) 
-          : sizes;
+        parsedSizes = typeof sizes === 'string' ? JSON.parse(sizes) : sizes;
       }
-      
       if (dimensions) {
-        parsedDimensions = typeof dimensions === 'string' 
-          ? JSON.parse(dimensions) 
-          : dimensions;
+        parsedDimensions = typeof dimensions === 'string' ? JSON.parse(dimensions) : dimensions;
       }
-      
       if (bearDetails) {
-        parsedBearDetails = typeof bearDetails === 'string' 
-          ? JSON.parse(bearDetails) 
-          : bearDetails;
+        parsedBearDetails = typeof bearDetails === 'string' ? JSON.parse(bearDetails) : bearDetails;
       }
-      
       if (seller) {
-        parsedSeller = typeof seller === 'string' 
-          ? JSON.parse(seller) 
-          : seller;
+        parsedSeller = typeof seller === 'string' ? JSON.parse(seller) : seller;
       }
     } catch (parseError) {
       return res.status(400).json({
@@ -739,57 +652,21 @@ const updateProduct = async (req, res) => {
     if (description !== undefined) updateData.description = description.trim();
     if (category !== undefined) updateData.category = category;
     if (occasion !== undefined) updateData.occasion = occasion;
-    
-    // Update discount if provided
-    if (discount !== undefined) {
-      const discountValue = parseFloat(discount) || 0;
-      updateData.discount = Math.max(0, Math.min(100, discountValue)); // Ensure 0-100 range
-    }
 
-    // Calculate base price from sizes/bearDetails if they are being updated
-    let basePrice = null;
-    if (parsedSizes && parsedSizes.length > 0) {
-      const sizePrices = parsedSizes.map(size => parseFloat(size.price || 0)).filter(price => price > 0);
-      if (sizePrices.length > 0) {
-        basePrice = Math.min(...sizePrices);
-      }
-    } else if (parsedBearDetails && parsedBearDetails.sizes && parsedBearDetails.sizes.length > 0) {
-      const bearPrices = parsedBearDetails.sizes.map(size => parseFloat(size.price || 0)).filter(price => price > 0);
-      if (bearPrices.length > 0) {
-        basePrice = Math.min(...bearPrices);
-      }
-    }
-
-    if (basePrice !== null) {
-      updateData.price = basePrice;
-    }
-    
-    // Calculate discounted price if price or discount is being updated
-    const finalPrice = updateData.price !== undefined ? updateData.price : existingProduct.price;
-    const finalDiscount = updateData.discount !== undefined ? updateData.discount : existingProduct.discount;
-    
-    if (finalDiscount > 0) {
-      updateData.discountedPrice = finalPrice - (finalPrice * finalDiscount / 100);
-    } else {
-      updateData.discountedPrice = finalPrice;
-    }
-
-    // Handle new images if uploaded
+    // Handle new images
     if (req.files && req.files.length > 0) {
       const imagePaths = [];
       req.files.forEach((file) => {
-        if (file.path) {
-          imagePaths.push(file.path);
-        }
+        if (file.path) imagePaths.push(file.path);
       });
       updateData.images = imagePaths;
     }
 
     // Update dimensions
     if (parsedDimensions && Object.keys(parsedDimensions).length > 0) {
-      updateData.dimensionsHeight = parsedDimensions.height ? parseFloat(parsedDimensions.height) : existingProduct.dimensionsHeight || 0;
-      updateData.dimensionsWidth = parsedDimensions.width ? parseFloat(parsedDimensions.width) : existingProduct.dimensionsWidth || 0;
-      updateData.dimensionsDepth = parsedDimensions.depth ? parseFloat(parsedDimensions.depth) : existingProduct.dimensionsDepth || 0;
+      updateData.dimensionsHeight = parsedDimensions.height ? parseFloat(parsedDimensions.height) : existingProduct.dimensionsHeight;
+      updateData.dimensionsWidth = parsedDimensions.width ? parseFloat(parsedDimensions.width) : existingProduct.dimensionsWidth;
+      updateData.dimensionsDepth = parsedDimensions.depth ? parseFloat(parsedDimensions.depth) : existingProduct.dimensionsDepth;
     }
 
     // Update seller
@@ -798,80 +675,109 @@ const updateProduct = async (req, res) => {
       updateData.sellerContact = parsedSeller.contact ? parsedSeller.contact.trim() : existingProduct.sellerContact;
     }
 
-    // Category-specific updates
-    if (category === 'bears' || existingProduct.category === 'bears') {
-      if (parsedBearDetails && Object.keys(parsedBearDetails).length > 0) {
-        // Process bear details with proper price conversion and oldPrice
-        const processedBearSizes = parsedBearDetails.sizes ? parsedBearDetails.sizes.map(size => ({
-          ...size,
-          price: parseFloat(size.price) || 0,
-          oldPrice: parseFloat(size.oldPrice) || 0,
-          dimensions: {
-            height: size.dimensions?.height ? parseFloat(size.dimensions.height) : 0,
-            width: size.dimensions?.width ? parseFloat(size.dimensions.width) : 0,
-            depth: size.dimensions?.depth ? parseFloat(size.dimensions.depth) : 0
-          }
-        })) : existingProduct.bearDetails?.sizes || [];
+    // Process category-specific updates
+    const updateCategory = category || existingProduct.category;
 
+    if (updateCategory === 'bears') {
+      if (parsedBearDetails && parsedBearDetails.sizes && parsedBearDetails.sizes.length > 0) {
+        const processedBearSizes = processBearSizes(parsedBearDetails.sizes);
+        
+        // Calculate base price from bear sizes
+        const basePrice = Math.min(...processedBearSizes.map(s => s.price));
+        const lowestPriceItem = processedBearSizes.find(s => s.price === basePrice);
+        
+        updateData.price = basePrice;
+        updateData.oldPrice = lowestPriceItem.oldPrice;
+        updateData.discount = lowestPriceItem.discount;
+        updateData.discountedPrice = lowestPriceItem.oldPrice > basePrice ? lowestPriceItem.oldPrice - basePrice : 0;
+        
         updateData.bearDetails = {
           sizes: processedBearSizes,
           colors: parsedBearDetails.colors || existingProduct.bearDetails?.colors || []
         };
-      }
-      
-      // Clear flower-specific fields for bears
-      if (category === 'bears') {
+
+        // Clear flower fields
+        updateData.sizes = [];
         updateData.freshFlowerSelections = [];
         updateData.artificialFlowerSelections = [];
         updateData.flowerSelections = [];
-        updateData.sizes = [];
         updateData.numberOfFlowers = 0;
       }
     } else {
       // Flower bouquet updates
-      if (parsedSizes.length > 0) {
-        // Process flower bouquet sizes with proper price conversion and oldPrice
-        const processedSizes = parsedSizes.map(size => ({
-          ...size,
-          price: parseFloat(size.price) || 0,
-          oldPrice: parseFloat(size.oldPrice) || 0,
-          dimensions: {
-            height: size.dimensions?.height ? parseFloat(size.dimensions.height) : 0,
-            width: size.dimensions?.width ? parseFloat(size.dimensions.width) : 0,
-            depth: size.dimensions?.depth ? parseFloat(size.dimensions.depth) : 0
-          }
-        }));
-
+      if (parsedSizes && parsedSizes.length > 0) {
+        const processedSizes = processSizes(parsedSizes);
+        
+        // Calculate base price from sizes
+        const basePrice = Math.min(...processedSizes.map(s => s.price));
+        const lowestPriceItem = processedSizes.find(s => s.price === basePrice);
+        
+        updateData.price = basePrice;
+        updateData.oldPrice = lowestPriceItem.oldPrice;
+        updateData.discount = lowestPriceItem.discount;
+        updateData.discountedPrice = lowestPriceItem.oldPrice > basePrice ? lowestPriceItem.oldPrice - basePrice : 0;
+        
         updateData.sizes = processedSizes;
         
-        // Calculate total flowers from sizes
-        const totalFlowers = parsedSizes.reduce((total, size) => {
-          const flowerCount = parseInt(size.flowerCount || 0);
-          return total + flowerCount;
+        // Calculate total flowers
+        updateData.numberOfFlowers = processedSizes.reduce((total, size) => {
+          return total + (parseInt(size.flowerCount) || 0);
         }, 0);
-        updateData.numberOfFlowers = totalFlowers;
+        
+        // Populate individual size columns
+        const populateSizeColumns = (sizes, sizeName) => {
+          // Normalize both for comparison (remove spaces, lowercase)
+          const normalizedSizeName = sizeName.toLowerCase().replace(/\s+/g, '');
+          const sizeData = sizes.find(s => s.size.toLowerCase().replace(/\s+/g, '') === normalizedSizeName);
+          if (!sizeData) return {};
+          
+          // Keep camelCase for column names (e.g., 'extraLarge' not 'extralarge')
+          const prefix = sizeName.charAt(0).toLowerCase() + sizeName.slice(1).replace(/\s+/g, '');
+          const savings = sizeData.oldPrice > sizeData.price ? sizeData.oldPrice - sizeData.price : 0;
+          
+          return {
+            [`${prefix}Price`]: sizeData.price,
+            [`${prefix}OldPrice`]: sizeData.oldPrice,
+            [`${prefix}Discount`]: sizeData.discount,
+            [`${prefix}DiscountedPrice`]: savings,
+            [`${prefix}FlowerCount`]: sizeData.flowerCount || null,
+            [`${prefix}DimensionsHeight`]: sizeData.dimensions?.height || null,
+            [`${prefix}DimensionsWidth`]: sizeData.dimensions?.width || null,
+            [`${prefix}DimensionsDepth`]: sizeData.dimensions?.depth || null,
+          };
+        };
+        
+        // Update all size-specific columns
+        Object.assign(updateData, {
+          ...populateSizeColumns(processedSizes, 'small'),
+          ...populateSizeColumns(processedSizes, 'medium'),
+          ...populateSizeColumns(processedSizes, 'large'),
+          ...populateSizeColumns(processedSizes, 'extraLarge')
+        });
       }
 
-      if (parsedFreshFlowerSelections.length > 0) {
+      if (parsedFreshFlowerSelections && parsedFreshFlowerSelections.length > 0) {
         updateData.freshFlowerSelections = parsedFreshFlowerSelections;
       }
 
-      if (parsedArtificialFlowerSelections.length > 0) {
+      if (parsedArtificialFlowerSelections && parsedArtificialFlowerSelections.length > 0) {
         updateData.artificialFlowerSelections = parsedArtificialFlowerSelections;
       }
 
-      // Legacy support
-      if (parsedFlowerSelections.length > 0) {
+      if (parsedFlowerSelections && parsedFlowerSelections.length > 0) {
         updateData.flowerSelections = parsedFlowerSelections;
       }
 
-      // Clear bear-specific fields for flower bouquets
+      // Clear bear fields
       if (category && category !== 'bears') {
-        updateData.bearDetails = undefined;
+        updateData.bearDetails = {};
       }
     }
 
-    const product = await Product.update(
+    console.log('📊 Update Data:', JSON.stringify(updateData, null, 2));
+
+    // Perform update
+    const [affectedRows, updatedProducts] = await Product.update(
       updateData,
       {
         where: { id: productId },
@@ -879,21 +785,23 @@ const updateProduct = async (req, res) => {
       }
     );
 
-    if (product[0] === 0) {
+    if (affectedRows === 0) {
       return res.status(404).json({
         success: false,
         message: 'Product not found'
       });
     }
 
+    console.log('✅ === PRODUCT UPDATED ===');
+
     res.json({
       success: true,
-      message: `${product[1][0].category === 'bears' ? 'Bear product' : 'Flower bouquet'} updated successfully`,
-      data: { product: product[1][0] }
+      message: `${updatedProducts[0].category === 'bears' ? 'Bear product' : 'Flower bouquet'} updated successfully`,
+      data: { product: updatedProducts[0] }
     });
 
   } catch (error) {
-    console.error('Update product error:', error);
+    console.error('❌ Update product error:', error);
     
     if (error.name === 'SequelizeValidationError') {
       const errors = error.errors.map(err => err.message);
@@ -912,110 +820,150 @@ const updateProduct = async (req, res) => {
   }
 };
 
+// @desc    Get all products with filtering, searching, and pagination
+// @route   GET /api/products
+// @access  Public
+const getProducts = async (req, res) => {
+  try {
+    const { category, occasion, minPrice, maxPrice, search, adminId, adminCode, page = 1, limit = 12 } = req.query;
+    
+    const where = { status: 'active' };
+    const includeOptions = [];
+    
+    if (category) where.category = category;
+    if (occasion) where.occasion = occasion;
+    if (adminId) where.adminId = adminId;
+    
+    // If adminCode is provided, we need to join with Admin table to filter by code
+    if (adminCode) {
+      includeOptions.push({
+        model: Admin,
+        as: 'admin',
+        attributes: ['adminCode'],
+        where: { adminCode: adminCode },
+        required: true
+      });
+    }
+    
+    if (minPrice || maxPrice) {
+      where.price = {};
+      if (minPrice) where.price[Op.gte] = parseFloat(minPrice);
+      if (maxPrice) where.price[Op.lte] = parseFloat(maxPrice);
+    }
+    if (search) {
+      where[Op.or] = [
+        { name: { [Op.iLike]: `%${search}%` } },
+        { description: { [Op.iLike]: `%${search}%` } }
+      ];
+    }
+    
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    
+    const { count, rows } = await Product.findAndCountAll({
+      where,
+      include: includeOptions.length > 0 ? includeOptions : undefined,
+      limit: parseInt(limit),
+      offset,
+      order: [['createdAt', 'DESC']],
+      distinct: true
+    });
+    
+    res.json({
+      success: true,
+      data: {
+        products: rows,
+        pagination: {
+          total: count,
+          page: parseInt(page),
+          pages: Math.ceil(count / parseInt(limit))
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get products error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// @desc    Get single product by ID
+// @route   GET /api/products/:id
+// @access  Public
+const getProductById = async (req, res) => {
+  try {
+    const product = await Product.findByPk(req.params.id);
+    
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+    
+    res.json({ success: true, data: { product } });
+  } catch (error) {
+    console.error('Get product error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// @desc    Get all product categories
+// @route   GET /api/products/categories
+// @access  Public
+const getCategories = async (req, res) => {
+  try {
+    const categories = ['fresh', 'artificial', 'bears', 'mixed'];
+    res.json({ success: true, data: { categories } });
+  } catch (error) {
+    console.error('Get categories error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 // @desc    Delete product (Admin only)
 // @route   DELETE /api/products/:id
 // @access  Private/Admin
 const deleteProduct = async (req, res) => {
   try {
     const product = await Product.findByPk(req.params.id);
-
+    
     if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found'
-      });
+      return res.status(404).json({ success: false, message: 'Product not found' });
     }
-
-    // Verify product belongs to this admin (unless superadmin)
+    
     if (req.user.role !== 'superadmin' && product.adminId !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'You do not have permission to delete this product'
-      });
+      return res.status(403).json({ success: false, message: 'Not authorized' });
     }
-
+    
     await product.destroy();
-
-    res.json({
-      success: true,
-      message: 'Product deleted successfully'
-    });
-
+    res.json({ success: true, message: 'Product deleted successfully' });
   } catch (error) {
     console.error('Delete product error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while deleting product',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// @desc    Get 10 newest products from different admins (for home page)
+// @desc    Get 10 newest products from different admins for home page
 // @route   GET /api/products/home
 // @access  Public
 const getHomePageProducts = async (req, res) => {
   try {
-    console.log('=== GET HOME PAGE PRODUCTS ===');
+    const products = await Product.findAll({
+      where: { status: 'active' },
+      limit: 10,
+      order: [['createdAt', 'DESC']]
+    });
     
-    // Get all active admins
-    const activeAdmins = await Admin.findAll({
-      where: { isActive: true },
-      attributes: ['id']
-    });
-    const activeAdminIds = activeAdmins.map(admin => admin.id);
-    
-    console.log(`Found ${activeAdmins.length} active admins`);
-
-    if (activeAdminIds.length === 0) {
-      return res.json({
-        success: true,
-        message: 'Home page products retrieved successfully',
-        data: { products: [] }
-      });
-    }
-
-    // Get 10 newest products, ensuring they are from different admins
-    const { sequelize } = require('../config/database');
-    const { QueryTypes } = require('sequelize');
-    const products = await sequelize.query(`
-      SELECT DISTINCT ON ("adminId") *
-      FROM products
-      WHERE "adminId" = ANY($1)
-      AND status = 'active'
-      ORDER BY "adminId", "createdAt" DESC
-      LIMIT 10
-    `, {
-      bind: [activeAdminIds],
-      type: QueryTypes.SELECT
-    });
-
-    console.log(`✅ Retrieved ${products.length} products from different admins for home page`);
-
-    res.json({
-      success: true,
-      message: 'Home page products retrieved successfully',
-      data: {
-        products
-      }
-    });
-
+    res.json({ success: true, data: { products } });
   } catch (error) {
-    console.error('Get home page products error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while retrieving home page products',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    console.error('Get home products error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
+// Export all controller functions
 module.exports = {
+  createProduct,
+  updateProduct,
   getProducts,
   getProductById,
   getCategories,
-  createProduct,
-  updateProduct,
   deleteProduct,
   getHomePageProducts
 };

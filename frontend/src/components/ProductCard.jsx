@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 import { useCart } from '../context/CartContext';
-import { FiX, FiShoppingCart, FiHeart, FiStar, FiInfo, FiPackage, FiTruck, FiShield, FiMaximize, FiEye, FiRotateCw, FiMove, FiMessageCircle } from 'react-icons/fi';
+import { FiX, FiShoppingCart, FiHeart, FiStar, FiInfo, FiPackage, FiTruck, FiShield, FiEye } from 'react-icons/fi';
 import ProductReviews from './ProductReviews';
 import apiService from '../services/api';
 
@@ -12,33 +12,110 @@ const ProductCard = ({ product }) => {
   const [showQuickView, setShowQuickView] = useState(false);
   const [selectedSize, setSelectedSize] = useState('');
   const [quantity, setQuantity] = useState(1);
-  const [rotationX, setRotationX] = useState(0);
-  const [rotationY, setRotationY] = useState(0);
-  const [is3DMode, setIs3DMode] = useState(true);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [topReviews, setTopReviews] = useState([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
 
-  // Get available sizes from product data
+  // Get available sizes from product data - using real database columns
   const getAvailableSizes = () => {
-    if (product.category === 'bears' && product.bearDetails?.sizes) {
-      return product.bearDetails.sizes.map(size => ({
-        id: size.size,
-        name: size.size,
-        price: parseFloat(size.price) || 0,
-        dimensions: size.dimensions
-      }));
-    } else if (product.sizes && product.sizes.length > 0) {
-      return product.sizes.map(size => ({
-        id: size.size,
-        name: size.size,
-        price: parseFloat(size.price) || 0,
-        flowerCount: size.flowerCount,
-        dimensions: size.dimensions
-      }));
+    const sizes = [];
+    
+    // Check for size-specific columns from database
+    if (product.smallPrice && parseFloat(product.smallPrice) > 0) {
+      sizes.push({
+        id: 'Small',
+        name: 'Small',
+        price: parseFloat(product.smallPrice) || 0,
+        oldPrice: parseFloat(product.smallOldPrice) || 0,
+        discount: parseFloat(product.smallDiscount) || 0,
+        discountedPrice: parseFloat(product.smallDiscountedPrice) || 0,
+        flowerCount: parseInt(product.smallFlowerCount) || 0,
+        dimensions: {
+          height: parseFloat(product.smallDimensionsHeight) || 0,
+          width: parseFloat(product.smallDimensionsWidth) || 0,
+          depth: parseFloat(product.smallDimensionsDepth) || 0
+        }
+      });
     }
-    return [];
+    
+    if (product.mediumPrice && parseFloat(product.mediumPrice) > 0) {
+      sizes.push({
+        id: 'Medium',
+        name: 'Medium',
+        price: parseFloat(product.mediumPrice) || 0,
+        oldPrice: parseFloat(product.mediumOldPrice) || 0,
+        discount: parseFloat(product.mediumDiscount) || 0,
+        discountedPrice: parseFloat(product.mediumDiscountedPrice) || 0,
+        flowerCount: parseInt(product.mediumFlowerCount) || 0,
+        dimensions: {
+          height: parseFloat(product.mediumDimensionsHeight) || 0,
+          width: parseFloat(product.mediumDimensionsWidth) || 0,
+          depth: parseFloat(product.mediumDimensionsDepth) || 0
+        }
+      });
+    }
+    
+    if (product.largePrice && parseFloat(product.largePrice) > 0) {
+      sizes.push({
+        id: 'Large',
+        name: 'Large',
+        price: parseFloat(product.largePrice) || 0,
+        oldPrice: parseFloat(product.largeOldPrice) || 0,
+        discount: parseFloat(product.largeDiscount) || 0,
+        discountedPrice: parseFloat(product.largeDiscountedPrice) || 0,
+        flowerCount: parseInt(product.largeFlowerCount) || 0,
+        dimensions: {
+          height: parseFloat(product.largeDimensionsHeight) || 0,
+          width: parseFloat(product.largeDimensionsWidth) || 0,
+          depth: parseFloat(product.largeDimensionsDepth) || 0
+        }
+      });
+    }
+    
+    if (product.extraLargePrice && parseFloat(product.extraLargePrice) > 0) {
+      sizes.push({
+        id: 'Extra Large',
+        name: 'Extra Large',
+        price: parseFloat(product.extraLargePrice) || 0,
+        oldPrice: parseFloat(product.extraLargeOldPrice) || 0,
+        discount: parseFloat(product.extraLargeDiscount) || 0,
+        discountedPrice: parseFloat(product.extraLargeDiscountedPrice) || 0,
+        flowerCount: parseInt(product.extraLargeFlowerCount) || 0,
+        dimensions: {
+          height: parseFloat(product.extraLargeDimensionsHeight) || 0,
+          width: parseFloat(product.extraLargeDimensionsWidth) || 0,
+          depth: parseFloat(product.extraLargeDimensionsDepth) || 0
+        }
+      });
+    }
+    
+    // Fallback to sizes array if no column-based sizes found
+    if (sizes.length === 0) {
+      if (product.category === 'bears' && product.bearDetails?.sizes) {
+        return product.bearDetails.sizes.map(size => ({
+          id: size.size,
+          name: size.size,
+          price: parseFloat(size.price) || 0,
+          oldPrice: parseFloat(size.oldPrice) || 0,
+          discount: parseFloat(size.discount) || 0,
+          discountedPrice: parseFloat(size.discountedPrice) || 0,
+          dimensions: size.dimensions
+        }));
+      } else if (product.sizes && product.sizes.length > 0) {
+        return product.sizes.map(size => ({
+          id: size.size,
+          name: size.size,
+          price: parseFloat(size.price) || 0,
+          oldPrice: parseFloat(size.oldPrice) || 0,
+          discount: parseFloat(size.discount) || 0,
+          discountedPrice: parseFloat(size.discountedPrice) || 0,
+          flowerCount: size.flowerCount,
+          dimensions: size.dimensions
+        }));
+      }
+    }
+    
+    return sizes;
   };
 
   // Get flower selections based on category
@@ -103,6 +180,22 @@ const ProductCard = ({ product }) => {
     fetchTopReviews();
   }, [product._id, product.id]);
 
+  // Keyboard navigation for image gallery
+  useEffect(() => {
+    if (!showQuickView) return;
+
+    const handleKeyPress = (e) => {
+      if (e.key === 'ArrowLeft') {
+        handlePrevImage();
+      } else if (e.key === 'ArrowRight') {
+        handleNextImage();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [showQuickView, currentImageIndex, product.images]);
+
   const handleQuantityChange = (change) => {
     const newQuantity = quantity + change;
     if (newQuantity >= 1) {
@@ -110,38 +203,23 @@ const ProductCard = ({ product }) => {
     }
   };
 
-  // 3D interaction handlers
-  const handleMouseDown = (e) => {
-    setIsDragging(true);
-    setDragStart({ x: e.clientX, y: e.clientY });
-  };
-
-  const handleMouseMove = (e) => {
-    if (!isDragging) return;
-    
-    const deltaX = e.clientX - dragStart.x;
-    const deltaY = e.clientY - dragStart.y;
-    
-    setRotationY(prev => prev + deltaX * 0.5);
-    setRotationX(prev => prev - deltaY * 0.5);
-    
-    setDragStart({ x: e.clientX, y: e.clientY });
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-
-  const resetRotation = () => {
-    setRotationX(0);
-    setRotationY(0);
-  };
-
-  const toggle3DMode = () => {
-    setIs3DMode(!is3DMode);
-    if (is3DMode) {
-      resetRotation();
+  // Image gallery handlers
+  const handleNextImage = () => {
+    const images = product.images || [];
+    if (images.length > 1) {
+      setCurrentImageIndex((prev) => (prev + 1) % images.length);
     }
+  };
+
+  const handlePrevImage = () => {
+    const images = product.images || [];
+    if (images.length > 1) {
+      setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+    }
+  };
+
+  const handleThumbnailClick = (index) => {
+    setCurrentImageIndex(index);
   };
 
   const getTotalPrice = () => {
@@ -159,6 +237,38 @@ const ProductCard = ({ product }) => {
     }
     const selectedSizeData = availableSizes.find(size => size.id === selectedSize);
     return selectedSizeData?.price || 0;
+  };
+
+  const getCurrentOldPrice = () => {
+    if (availableSizes.length === 0) {
+      return product.oldPrice || 0;
+    }
+    const selectedSizeData = availableSizes.find(size => size.id === selectedSize);
+    return selectedSizeData?.oldPrice || 0;
+  };
+
+  const getCurrentDiscount = () => {
+    if (availableSizes.length === 0) {
+      return product.discount || 0;
+    }
+    const selectedSizeData = availableSizes.find(size => size.id === selectedSize);
+    return selectedSizeData?.discount || 0;
+  };
+
+  const getCurrentDiscountedPrice = () => {
+    if (availableSizes.length === 0) {
+      return product.discountedPrice || 0;
+    }
+    const selectedSizeData = availableSizes.find(size => size.id === selectedSize);
+    return selectedSizeData?.discountedPrice || 0;
+  };
+
+  const getTotalSavings = () => {
+    return getCurrentDiscountedPrice() * quantity;
+  };
+
+  const getTotalOldPrice = () => {
+    return getCurrentOldPrice() * quantity;
   };
 
   const handleAddToCart = () => {
@@ -212,11 +322,8 @@ const ProductCard = ({ product }) => {
     // Reset options when closing
     setSelectedSize(availableSizes.length > 0 ? availableSizes[0].id : '');
     setQuantity(1);
-    // Reset 3D state
-    setRotationX(0);
-    setRotationY(0);
-    setIs3DMode(true);
-    setIsDragging(false);
+    // Reset image gallery
+    setCurrentImageIndex(0);
   };
 
   return (
@@ -226,7 +333,7 @@ const ProductCard = ({ product }) => {
           showQuickView ? 'pointer-events-none filter blur-sm' : ''
         }`}
       >
-        <div className="relative pb-[75%] overflow-hidden">
+        <div className="relative pb-[70%] overflow-hidden">
           <img 
             src={product.images && product.images.length > 0 ? product.images[0] : '/assets/images/placeholder.jpg'} 
             alt={product.name} 
@@ -234,50 +341,50 @@ const ProductCard = ({ product }) => {
           />
           
           {/* Discount Badge */}
-          {product.oldPrice > 0 && product.price < product.oldPrice && (
-            <div className="absolute top-2 left-2 bg-gradient-to-r from-red-500 to-pink-500 text-white px-2 py-1 rounded-md shadow-lg z-10">
-              <span className="text-xs font-bold">
-                {product.discount?.toFixed(0) || Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100)}% OFF
+          {getCurrentOldPrice() > 0 && getCurrentPrice() < getCurrentOldPrice() && (
+            <div className="absolute top-1.5 left-1.5 bg-gradient-to-r from-red-500 to-pink-500 text-white px-1.5 py-0.5 rounded-md shadow-lg z-10">
+              <span className="text-[10px] font-bold">
+                {getCurrentDiscount() > 0 ? parseFloat(getCurrentDiscount()).toFixed(0) : Math.round(((getCurrentOldPrice() - getCurrentPrice()) / getCurrentOldPrice()) * 100)}% OFF
               </span>
             </div>
           )}
           
           {/* Rating Badge */}
           {product.ratingsCount > 0 && (
-            <div className="absolute top-2 right-2 bg-yellow-400 text-gray-900 px-2 py-1 rounded-md shadow-lg z-10 flex items-center space-x-1">
-              <FiStar className="h-3 w-3 fill-current" />
-              <span className="text-xs font-bold">{parseFloat(product.ratingsAverage || 0).toFixed(1)}</span>
+            <div className="absolute top-1.5 right-1.5 bg-yellow-400 text-gray-900 px-1.5 py-0.5 rounded-md shadow-lg z-10 flex items-center space-x-0.5">
+              <FiStar className="h-2.5 w-2.5 fill-current" />
+              <span className="text-[10px] font-bold">{parseFloat(product.ratingsAverage || 0).toFixed(1)}</span>
             </div>
           )}
         </div>
-        <div className="p-3">
-          <h3 className="font-medium text-sm mb-1 line-clamp-2 leading-tight">{product.name}</h3>
+        <div className="p-2">
+          <h3 className="font-medium text-xs mb-1 line-clamp-2 leading-tight">{product.name}</h3>
           
           {/* Price with Discount */}
-          <div className="mb-2">
-            {product.oldPrice > 0 && product.price < product.oldPrice ? (
+          <div className="mb-1.5">
+            {getCurrentOldPrice() > 0 && getCurrentPrice() < getCurrentOldPrice() ? (
               <>
                 {/* Discounted Price Display */}
-                <div className="flex items-center gap-2 mb-1">
-                  <p className="text-gray-400 text-xs line-through">
-                    Rs. {parseFloat(product.oldPrice).toFixed(2)}
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <p className="text-gray-400 text-[10px] line-through">
+                    Rs. {parseFloat(getCurrentOldPrice()).toFixed(2)}
                   </p>
-                  <p className="text-purple-600 font-bold text-base">
-                    Rs. {parseFloat(product.price).toFixed(2)}
+                  <p className="text-purple-600 font-bold text-sm">
+                    Rs. {parseFloat(getCurrentPrice()).toFixed(2)}
                   </p>
                 </div>
                 {/* Discount Badge */}
-                <div className="inline-flex items-center gap-1 px-2 py-1 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-md">
-                  <span className="text-xs font-bold text-green-800">
-                    💰 {product.discount?.toFixed(2) || Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100)}% OFF
+                <div className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded">
+                  <span className="text-[10px] font-bold text-green-800">
+                    💰 {getCurrentDiscount() > 0 ? parseFloat(getCurrentDiscount()).toFixed(0) : Math.round(((getCurrentOldPrice() - getCurrentPrice()) / getCurrentOldPrice()) * 100)}% OFF
                   </span>
-                  <span className="text-xs text-green-700">
-                    • Save Rs. {(parseFloat(product.oldPrice) - parseFloat(product.price)).toFixed(2)}
+                  <span className="text-[10px] text-green-700">
+                    • Save Rs. {getCurrentDiscountedPrice().toFixed(2)}
                   </span>
                 </div>
               </>
             ) : (
-              <p className="text-purple-600 font-semibold text-sm">
+              <p className="text-purple-600 font-semibold text-xs">
                 {availableSizes.length > 0 ? (
                   `Rs. ${Math.min(...availableSizes.map(s => s.price)).toFixed(2)}`
                 ) : (
@@ -288,22 +395,22 @@ const ProductCard = ({ product }) => {
           </div>
 
           {loadingReviews && (
-            <div className="mb-2 bg-gray-50 rounded-lg p-2 text-center">
-              <span className="text-xs text-gray-500">Loading reviews...</span>
+            <div className="mb-1.5 bg-gray-50 rounded-lg p-1.5 text-center">
+              <span className="text-[10px] text-gray-500">Loading reviews...</span>
             </div>
           )}
 
           <div className="flex space-x-1">
             <button
               onClick={handleQuickAddToCart}
-              className="flex-1 py-1.5 px-2  bg-pink-500 to-purple-600 text-white  transition-colors flex items-center justify-center space-x-1"
+              className="flex-1 py-1 px-2 text-xs bg-pink-500 to-purple-600 text-white transition-colors flex items-center justify-center space-x-1"
             >
               <FiShoppingCart className="h-3 w-3" />
               <span>Add</span>
             </button>
             <button
               onClick={() => setShowQuickView(true)}
-              className="flex-1 py-1.5 px-2 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 transition-colors border border-gray-200 flex items-center justify-center space-x-1"
+              className="flex-1 py-1 px-2 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors border border-gray-200 flex items-center justify-center space-x-1"
             >
               <FiInfo className="h-3 w-3" />
               <span>View</span>
@@ -364,149 +471,70 @@ const ProductCard = ({ product }) => {
 
                 {/* Scrollable Content */}
                 <div className="overflow-y-auto max-h-[calc(95vh-60px)]">
-                  {/* 3D Product Viewer Section */}
-                  <div className="relative h-64 sm:h-72 md:h-80 bg-gradient-to-br from-purple-50 to-pink-50 overflow-hidden">
-                    {/* 3D Viewer Controls */}
-                    <div className="absolute top-4 right-4 z-10 flex space-x-2">
-                      <button
-                        onClick={toggle3DMode}
-                        className={`p-2 rounded-lg backdrop-blur-sm border transition-all ${
-                          is3DMode 
-                            ? 'bg-purple-600 text-white border-purple-600 shadow-lg' 
-                            : 'bg-white/80 text-gray-700 border-gray-200 hover:bg-white'
-                        }`}
-                        title={is3DMode ? "Switch to 2D view" : "Switch to 3D view"}
-                      >
-                        <FiMaximize size={16} />
-                      </button>
-                      {is3DMode && (
-                        <button
-                          onClick={resetRotation}
-                          className="p-2 bg-white/80 text-gray-700 rounded-lg backdrop-blur-sm border border-gray-200 hover:bg-white transition-all"
-                          title="Reset rotation"
-                        >
-                          <FiRotateCw size={16} />
-                        </button>
-                      )}
+                  {/* Image Gallery Section */}
+                  <div className="relative h-64 sm:h-72 md:h-96 bg-gradient-to-br from-purple-50 to-pink-50 overflow-hidden">
+                    {/* Main Image Display */}
+                    <div className="w-full h-full flex items-center justify-center p-4">
+                      <img 
+                        src={product.images && product.images.length > 0 ? product.images[currentImageIndex] : '/assets/images/placeholder.jpg'} 
+                        alt={`${product.name} - Image ${currentImageIndex + 1}`}
+                        className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+                        draggable={false}
+                      />
                     </div>
 
-                    {/* 3D Instructions */}
-                    {is3DMode && (
-                      <div className="absolute bottom-4 left-4 z-10">
-                        <div className="bg-black/60 text-white px-3 py-2 rounded-lg backdrop-blur-sm">
-                          <div className="flex items-center text-xs">
-                            <FiMove className="mr-1" />
-                            <span>Drag to rotate • Click reset to center</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Size Dimensions Display in 3D View */}
-                    {is3DMode && selectedSize && availableSizes.length > 0 && (
-                      <div className="absolute top-4 left-4 z-10">
-                        {(() => {
-                          const currentSize = availableSizes.find(size => size.id === selectedSize);
-                          if (currentSize?.dimensions) {
-                            return (
-                              <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 border border-gray-200">
-                                <h4 className="text-xs font-semibold text-gray-800 mb-2">Dimensions ({currentSize.name})</h4>
-                                <div className="space-y-1 text-xs text-gray-700">
-                                  {currentSize.dimensions.height > 0 && (
-                                    <div className="flex items-center justify-between">
-                                      <span>Height:</span>
-                                      <span className="font-medium">{currentSize.dimensions.height} cm</span>
-                                    </div>
-                                  )}
-                                  {currentSize.dimensions.width > 0 && (
-                                    <div className="flex items-center justify-between">
-                                      <span>Width:</span>
-                                      <span className="font-medium">{currentSize.dimensions.width} cm</span>
-                                    </div>
-                                  )}
-                                  {currentSize.dimensions.length > 0 && (
-                                    <div className="flex items-center justify-between">
-                                      <span>Length:</span>
-                                      <span className="font-medium">{currentSize.dimensions.length} cm</span>
-                                    </div>
-                                  )}
-                                  {currentSize.dimensions.depth > 0 && (
-                                    <div className="flex items-center justify-between">
-                                      <span>Depth:</span>
-                                      <span className="font-medium">{currentSize.dimensions.depth} cm</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </div>
-                    )}
-
-                    {/* Product Image with 3D Transform */}
-                    <div 
-                      className={`w-full h-full flex items-center justify-center cursor-${is3DMode ? 'grab' : 'default'} ${
-                        isDragging ? 'cursor-grabbing' : ''
-                      }`}
-                      onMouseDown={is3DMode ? handleMouseDown : undefined}
-                      onMouseMove={is3DMode ? handleMouseMove : undefined}
-                      onMouseUp={is3DMode ? handleMouseUp : undefined}
-                      onMouseLeave={is3DMode ? handleMouseUp : undefined}
-                      style={{
-                        perspective: is3DMode ? '1000px' : 'none'
-                      }}
-                    >
-                      <div
-                        className="relative transition-transform duration-200 ease-out"
-                        style={{
-                          transform: is3DMode 
-                            ? `rotateX(${rotationX}deg) rotateY(${rotationY}deg) translateZ(50px)`
-                            : 'none',
-                          transformStyle: 'preserve-3d'
-                        }}
-                      >
-                        {/* Main Product Image */}
-                        <img 
-                          src={product.images && product.images.length > 0 ? product.images[0] : '/assets/images/placeholder.jpg'} 
-                          alt={product.name} 
-                          className={`max-w-full max-h-full object-contain ${
-                            is3DMode ? 'drop-shadow-2xl' : ''
-                          }`}
-                          style={{
-                            maxWidth: is3DMode ? '300px' : '100%',
-                            maxHeight: is3DMode ? '300px' : '100%',
-                            filter: is3DMode ? 'drop-shadow(0 25px 50px rgba(0, 0, 0, 0.3))' : 'none'
-                          }}
-                          draggable={false}
-                        />
-                        
-                        {/* 3D Shadow/Base */}
-                        {is3DMode && (
-                          <div 
-                            className="absolute inset-x-0 -bottom-4 h-8 bg-gradient-to-r from-transparent via-black/20 to-transparent rounded-full blur-sm"
-                            style={{
-                              transform: 'rotateX(90deg) translateZ(-20px)',
-                              transformOrigin: 'center bottom'
-                            }}
-                          />
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Ambient Lighting Effects for 3D */}
-                    {is3DMode && (
+                    {/* Navigation Arrows */}
+                    {product.images && product.images.length > 1 && (
                       <>
-                        <div className="absolute inset-0 bg-gradient-to-br from-purple-100/30 to-pink-100/30 pointer-events-none" />
-                        <div className="absolute top-0 left-0 w-32 h-32 bg-gradient-to-br from-white/40 to-transparent rounded-full blur-3xl pointer-events-none" />
-                        <div className="absolute bottom-0 right-0 w-40 h-40 bg-gradient-to-tl from-purple-200/40 to-transparent rounded-full blur-3xl pointer-events-none" />
+                        <button
+                          onClick={handlePrevImage}
+                          className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-800 p-2 rounded-full shadow-lg transition-all z-10"
+                          aria-label="Previous image"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={handleNextImage}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-800 p-2 rounded-full shadow-lg transition-all z-10"
+                          aria-label="Next image"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
                       </>
                     )}
 
-                    {/* Traditional overlay for 2D mode */}
-                    {!is3DMode && (
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+                    {/* Image Counter */}
+                    {product.images && product.images.length > 1 && (
+                      <div className="absolute top-4 right-4 bg-black/60 text-white px-3 py-1 rounded-full text-xs font-medium">
+                        {currentImageIndex + 1} / {product.images.length}
+                      </div>
+                    )}
+
+                    {/* Thumbnail Gallery */}
+                    {product.images && product.images.length > 1 && (
+                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 bg-white/90 backdrop-blur-sm p-2 rounded-lg shadow-lg">
+                        {product.images.map((image, index) => (
+                          <button
+                            key={index}
+                            onClick={() => handleThumbnailClick(index)}
+                            className={`w-12 h-12 sm:w-14 sm:h-14 rounded-md overflow-hidden border-2 transition-all ${
+                              currentImageIndex === index 
+                                ? 'border-purple-600 scale-110 shadow-md' 
+                                : 'border-gray-300 hover:border-purple-400'
+                            }`}
+                          >
+                            <img 
+                              src={image} 
+                              alt={`Thumbnail ${index + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
 
@@ -533,7 +561,7 @@ const ProductCard = ({ product }) => {
                           <div className="flex items-center">
                             <div className="flex items-center">
                               {[1, 2, 3, 4, 5].map((star) => {
-                                const rating = product.ratings?.average || 0;
+                                const rating = parseFloat(product.ratingsAverage) || 0;
                                 return (
                                   <FiStar 
                                     key={star} 
@@ -645,12 +673,7 @@ const ProductCard = ({ product }) => {
                                   <span className="font-medium text-gray-800 capitalize text-xs">{product.occasion}</span>
                                 </div>
                               )}
-                              {product.numberOfFlowers > 0 && (
-                                <div className="flex justify-between items-center">
-                                  <span className="text-xs text-gray-600">Total Flowers:</span>
-                                  <span className="font-medium text-gray-800 text-xs">{product.numberOfFlowers}</span>
-                                </div>
-                              )}
+                             
                               {product.material && (
                                 <div className="flex justify-between items-center">
                                   <span className="text-xs text-gray-600">Material:</span>
@@ -715,28 +738,28 @@ const ProductCard = ({ product }) => {
                         {/* Price Section */}
                         <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-100">
                           {/* Old Price and New Price Display */}
-                          {product.oldPrice > 0 && product.price < product.oldPrice ? (
+                          {getCurrentOldPrice() > 0 && getCurrentPrice() < getCurrentOldPrice() ? (
                             <>
                               <div className="flex items-center gap-2 mb-2">
                                 <span className="text-sm text-gray-500">Old Price:</span>
                                 <span className="text-lg text-gray-400 line-through">
-                                  Rs. {parseFloat(product.oldPrice).toFixed(2)}
+                                  Rs. {getTotalOldPrice().toFixed(2)}
                                 </span>
                               </div>
                               <div className="flex items-center gap-2 mb-3">
                                 <span className="text-sm font-medium text-gray-700">New Price:</span>
                                 <span className="text-3xl font-bold text-purple-600">
-                                  Rs. {(getCurrentPrice() * quantity).toFixed(2)}
+                                  Rs. {getTotalPrice().toFixed(2)}
                                 </span>
                               </div>
                               {/* Discount Info */}
                               <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
                                 <div className="flex items-center justify-between">
                                   <span className="text-sm font-bold text-green-800">
-                                    💰 Discount: {product.discount?.toFixed(2) || Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100)}% OFF
+                                    💰 Discount: {getCurrentDiscount() > 0 ? parseFloat(getCurrentDiscount()).toFixed(0) : Math.round(((getCurrentOldPrice() - getCurrentPrice()) / getCurrentOldPrice()) * 100)}% OFF
                                   </span>
                                   <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-1 rounded-full">
-                                    Save Rs. {((parseFloat(product.oldPrice) - parseFloat(product.price)) * quantity).toFixed(2)}
+                                    Save Rs. {getTotalSavings().toFixed(2)}
                                   </span>
                                 </div>
                               </div>
@@ -745,16 +768,17 @@ const ProductCard = ({ product }) => {
                             <>
                               <div className="flex flex-wrap items-center gap-2 mb-2">
                                 <span className="text-2xl font-bold text-purple-600">Rs. {getTotalPrice().toFixed(2)}</span>
-                                <span className="text-sm text-gray-500 line-through">Rs. {(getTotalPrice() * 1.2).toFixed(2)}</span>
-                                <span className="bg-red-100 text-red-800 text-xs font-medium px-2 py-1 rounded-full">
-                                  Save 20%
-                                </span>
                               </div>
                             </>
                           )}
                           {quantity > 1 && (
                             <p className="text-xs text-gray-600 mt-2">
                               Rs. {getCurrentPrice().toFixed(2)} each
+                              {getCurrentOldPrice() > 0 && getCurrentPrice() < getCurrentOldPrice() && (
+                                <span className="text-green-600 ml-2">
+                                  (Save Rs. {getCurrentDiscountedPrice().toFixed(2)} per item)
+                                </span>
+                              )}
                             </p>
                           )}
                         </div>
@@ -780,7 +804,19 @@ const ProductCard = ({ product }) => {
                                   {/* Size Header */}
                                   <div className="flex justify-between items-center mb-2">
                                     <div className="font-medium text-sm">{size.name}</div>
-                                    <div className="font-semibold text-purple-600 text-sm">Rs. {size.price.toFixed(2)}</div>
+                                    <div className="flex flex-col items-end">
+                                      {size.oldPrice > 0 && size.price < size.oldPrice ? (
+                                        <>
+                                          <div className="text-xs text-gray-400 line-through">Rs. {size.oldPrice.toFixed(2)}</div>
+                                          <div className="font-semibold text-purple-600 text-sm">Rs. {size.price.toFixed(2)}</div>
+                                          <div className="text-xs text-green-600 font-medium">
+                                            {size.discount > 0 ? `${size.discount.toFixed(0)}% OFF` : `Save Rs. ${size.discountedPrice.toFixed(2)}`}
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <div className="font-semibold text-purple-600 text-sm">Rs. {size.price.toFixed(2)}</div>
+                                      )}
+                                    </div>
                                   </div>
                                   
                                   {/* Enhanced Dimensions Display */}
