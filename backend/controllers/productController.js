@@ -1,5 +1,6 @@
 const { Product, Admin } = require('../models');
 const { Op } = require('sequelize');
+const { sequelize } = require('../config/database');
 
 // Helper function to process sizes with all data
 const processSizes = (sizes) => {
@@ -834,34 +835,120 @@ const getProducts = async (req, res) => {
     if (occasion) where.occasion = occasion;
     if (adminId) where.adminId = adminId;
     
-    // If adminCode is provided, we need to join with Admin table to filter by code
+    // Build Admin include
+    const adminInclude = {
+      model: Admin,
+      as: 'admin',
+      attributes: ['id', 'name', 'adminCode', 'shopName', 'address'],
+      required: false
+    };
+
+    // If adminCode is provided, filter by it
     if (adminCode) {
-      includeOptions.push({
-        model: Admin,
-        as: 'admin',
-        attributes: ['adminCode'],
-        where: { adminCode: adminCode },
-        required: true
-      });
+      adminInclude.where = { adminCode: adminCode };
+      adminInclude.required = true;
     }
+
+    includeOptions.push(adminInclude);
     
     if (minPrice || maxPrice) {
       where.price = {};
       if (minPrice) where.price[Op.gte] = parseFloat(minPrice);
       if (maxPrice) where.price[Op.lte] = parseFloat(maxPrice);
     }
+
+    // Handle search - use raw SQL for searching across product and admin fields
     if (search) {
-      where[Op.or] = [
-        { name: { [Op.iLike]: `%${search}%` } },
-        { description: { [Op.iLike]: `%${search}%` } }
-      ];
+      const searchTerm = `%${search}%`;
+      
+      // Use Sequelize's literal to search across joined tables
+      const products = await sequelize.query(`
+        SELECT DISTINCT p.* 
+        FROM products p
+        LEFT JOIN admins a ON p."adminId" = a.id
+        WHERE p.status = 'active'
+        ${category ? `AND p.category = :category` : ''}
+        ${occasion ? `AND p.occasion = :occasion` : ''}
+        ${adminId ? `AND p."adminId" = :adminId` : ''}
+        ${adminCode ? `AND a."adminCode" = :adminCode` : ''}
+        ${minPrice ? `AND p.price >= :minPrice` : ''}
+        ${maxPrice ? `AND p.price <= :maxPrice` : ''}
+        AND (
+          p.name ILIKE :search 
+          OR p.description ILIKE :search
+          OR a."shopName" ILIKE :search
+          OR a.address ILIKE :search
+          OR a.name ILIKE :search
+        )
+        ORDER BY p."createdAt" DESC
+        LIMIT :limit OFFSET :offset
+      `, {
+        replacements: {
+          search: searchTerm,
+          category,
+          occasion,
+          adminId,
+          adminCode,
+          minPrice: minPrice ? parseFloat(minPrice) : null,
+          maxPrice: maxPrice ? parseFloat(maxPrice) : null,
+          limit: parseInt(limit),
+          offset: (parseInt(page) - 1) * parseInt(limit)
+        },
+        type: sequelize.QueryTypes.SELECT
+      });
+
+      // Get total count for pagination
+      const countResult = await sequelize.query(`
+        SELECT COUNT(DISTINCT p.id) as count
+        FROM products p
+        LEFT JOIN admins a ON p."adminId" = a.id
+        WHERE p.status = 'active'
+        ${category ? `AND p.category = :category` : ''}
+        ${occasion ? `AND p.occasion = :occasion` : ''}
+        ${adminId ? `AND p."adminId" = :adminId` : ''}
+        ${adminCode ? `AND a."adminCode" = :adminCode` : ''}
+        ${minPrice ? `AND p.price >= :minPrice` : ''}
+        ${maxPrice ? `AND p.price <= :maxPrice` : ''}
+        AND (
+          p.name ILIKE :search 
+          OR p.description ILIKE :search
+          OR a."shopName" ILIKE :search
+          OR a.address ILIKE :search
+          OR a.name ILIKE :search
+        )
+      `, {
+        replacements: {
+          search: searchTerm,
+          category,
+          occasion,
+          adminId,
+          adminCode,
+          minPrice: minPrice ? parseFloat(minPrice) : null,
+          maxPrice: maxPrice ? parseFloat(maxPrice) : null
+        },
+        type: sequelize.QueryTypes.SELECT
+      });
+
+      const count = parseInt(countResult[0].count);
+
+      return res.json({
+        success: true,
+        data: {
+          products,
+          pagination: {
+            total: count,
+            page: parseInt(page),
+            pages: Math.ceil(count / parseInt(limit))
+          }
+        }
+      });
     }
     
     const offset = (parseInt(page) - 1) * parseInt(limit);
     
     const { count, rows } = await Product.findAndCountAll({
       where,
-      include: includeOptions.length > 0 ? includeOptions : undefined,
+      include: includeOptions,
       limit: parseInt(limit),
       offset,
       order: [['createdAt', 'DESC']],

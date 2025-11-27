@@ -68,7 +68,7 @@ const getAdminDashboardStats = async (req, res) => {
       orderStatusCounts.total += parseInt(stat.count);
     });
 
-    // Calculate revenue from completed orders
+    // Calculate revenue from delivered orders
     const revenueData = await sequelize.query(`
       SELECT 
         SUM((item->>'price')::numeric * (item->>'quantity')::numeric) as "totalRevenue",
@@ -76,7 +76,7 @@ const getAdminDashboardStats = async (req, res) => {
       FROM orders o,
       jsonb_array_elements(o.items) as item
       WHERE (item->>'adminId')::uuid = :adminId
-        AND o."orderStatus" IN ('delivered', 'completed')
+        AND o."orderStatus" = 'delivered'
     `, {
       replacements: { adminId },
       type: sequelize.QueryTypes.SELECT
@@ -306,7 +306,7 @@ const getAdminOrderStats = async (req, res) => {
       FROM orders o,
       jsonb_array_elements(o.items) as item
       WHERE (item->>'adminId')::uuid = :adminId
-        AND o."orderStatus" IN ('delivered', 'completed')
+        AND o."orderStatus" = 'delivered'
       GROUP BY (item->>'productId'), (item->>'name')
       ORDER BY "totalSold" DESC
       LIMIT 10
@@ -394,7 +394,7 @@ const getAdminRevenue = async (req, res) => {
 
     // Calculate totals
     const totalRevenue = revenueByStatus
-      .filter(r => ['delivered', 'completed'].includes(r.orderStatus))
+      .filter(r => r.orderStatus === 'delivered')
       .reduce((sum, r) => sum + parseFloat(r.revenue || 0), 0);
 
     const pendingRevenue = revenueByStatus
@@ -415,7 +415,7 @@ const getAdminRevenue = async (req, res) => {
       jsonb_array_elements(o.items) as item
       LEFT JOIN products p ON (item->>'productId')::uuid = p.id
       WHERE (item->>'adminId')::uuid = :adminId
-        AND o."orderStatus" IN ('delivered', 'completed')
+        AND o."orderStatus" = 'delivered'
         ${dateFilter}
       GROUP BY p.category
       ORDER BY revenue DESC
@@ -537,7 +537,7 @@ const getTopProducts = async (req, res) => {
       FROM orders o,
       jsonb_array_elements(o.items) AS item
       WHERE (item->>'adminId')::uuid = :adminId
-        AND o."orderStatus" IN ('delivered', 'completed')
+        AND o."orderStatus" = 'delivered'
         ${dateFilter}
       GROUP BY item->>'productId', item->>'name', item->>'image'
       ORDER BY "totalQuantitySold" DESC
@@ -790,7 +790,7 @@ const getSimplifiedDashboard = async (req, res) => {
           FROM orders o,
           jsonb_array_elements(o.items) AS item
           WHERE (item->>'productId')::text = ANY(ARRAY[:productIds])
-            AND o."orderStatus" IN ('delivered', 'completed')
+            AND o."orderStatus" = 'delivered'
         `, {
           replacements: { productIds: productIds.map(id => id.toString()) },
           type: sequelize.QueryTypes.SELECT
@@ -827,7 +827,7 @@ const getSimplifiedDashboard = async (req, res) => {
           jsonb_array_elements(o.items) AS item
           WHERE (item->>'productId')::text = ANY(ARRAY[:productIds])
             AND o."createdAt" >= :sevenDaysAgo
-            AND o."orderStatus" IN ('delivered', 'completed')
+            AND o."orderStatus" = 'delivered'
           GROUP BY DATE(o."createdAt")
           ORDER BY date ASC
         `, {
@@ -865,13 +865,55 @@ const getSimplifiedDashboard = async (req, res) => {
       });
     });
 
+    // Get real commission payment data
+    const CommissionPayment = require('../models/CommissionPayment');
+    let commissionData = {
+      pendingCommission: parseFloat(admin.commissionTotalDue || 0),
+      totalPaid: 0,
+      totalPayments: 0,
+      pendingVerification: 0
+    };
+
+    try {
+      const commissionStats = await CommissionPayment.findAll({
+        where: { adminId },
+        attributes: [
+          [sequelize.fn('COUNT', sequelize.col('id')), 'totalPayments'],
+          [
+            sequelize.fn('SUM', 
+              sequelize.literal("CASE WHEN status IN ('paid', 'verified') THEN amount ELSE 0 END")
+            ),
+            'totalPaid'
+          ],
+          [
+            sequelize.fn('SUM', 
+              sequelize.literal("CASE WHEN status = 'pending_verification' THEN amount ELSE 0 END")
+            ),
+            'pendingVerification'
+          ]
+        ],
+        raw: true
+      });
+
+      if (commissionStats[0]) {
+        commissionData.totalPaid = parseFloat(commissionStats[0].totalPaid || 0);
+        commissionData.totalPayments = parseInt(commissionStats[0].totalPayments || 0);
+        commissionData.pendingVerification = parseFloat(commissionStats[0].pendingVerification || 0);
+      }
+    } catch (err) {
+      console.error('Error fetching commission data:', err);
+    }
+
     const stats = {
       totalSales: Math.round(totalSales * 100) / 100,
       totalOrders,
       totalProducts,
       pendingOrders,
       lowStock,
-      pendingCommission: parseFloat(admin.commissionTotalDue || 0)
+      pendingCommission: commissionData.pendingCommission,
+      commissionPaid: commissionData.totalPaid,
+      commissionPayments: commissionData.totalPayments,
+      commissionPendingVerification: commissionData.pendingVerification
     };
 
     res.json({
@@ -900,6 +942,252 @@ const getSimplifiedDashboard = async (req, res) => {
   }
 };
 
+// @desc    Get comprehensive analytics data
+// @route   GET /api/admin/analytics/comprehensive
+// @access  Private (Admin only)
+const getComprehensiveAnalytics = async (req, res) => {
+  try {
+    const adminId = req.user.id;
+    const { period = '30' } = req.query;
+
+    // Calculate date range
+    const daysAgo = parseInt(period);
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysAgo);
+
+    const CommissionPayment = require('../models/CommissionPayment');
+
+    // 1. Revenue Overview
+    const revenueData = await sequelize.query(`
+      SELECT 
+        SUM((item->>'price')::numeric * (item->>'quantity')::numeric) as total,
+        COUNT(DISTINCT o.id) as "orderCount",
+        AVG((item->>'price')::numeric * (item->>'quantity')::numeric) as average
+      FROM orders o,
+      jsonb_array_elements(o.items) as item
+      WHERE (item->>'adminId')::uuid = :adminId
+        AND o."orderStatus" = 'delivered'
+        AND o."createdAt" >= :startDate
+    `, {
+      replacements: { adminId, startDate },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    const revenue = {
+      total: parseFloat(revenueData[0]?.total || 0),
+      orderCount: parseInt(revenueData[0]?.orderCount || 0),
+      average: parseFloat(revenueData[0]?.average || 0)
+    };
+
+    // 2. Product Statistics
+    const productStats = await Product.findAll({
+      where: { adminId },
+      attributes: [
+        [sequelize.fn('COUNT', sequelize.col('id')), 'total'],
+        [sequelize.fn('SUM', sequelize.literal("CASE WHEN stock > 0 THEN 1 ELSE 0 END")), 'inStock'],
+        [sequelize.fn('SUM', sequelize.literal("CASE WHEN stock = 0 THEN 1 ELSE 0 END")), 'outOfStock'],
+        [sequelize.fn('SUM', sequelize.literal("CASE WHEN stock <= 10 AND stock > 0 THEN 1 ELSE 0 END")), 'lowStock']
+      ],
+      raw: true
+    });
+
+    const products = {
+      total: parseInt(productStats[0]?.total || 0),
+      inStock: parseInt(productStats[0]?.inStock || 0),
+      outOfStock: parseInt(productStats[0]?.outOfStock || 0),
+      lowStock: parseInt(productStats[0]?.lowStock || 0)
+    };
+
+    // 3. Order Statistics by Status
+    const ordersByStatus = await sequelize.query(`
+      SELECT 
+        o."orderStatus",
+        COUNT(DISTINCT o.id) as count,
+        SUM((item->>'price')::numeric * (item->>'quantity')::numeric) as revenue
+      FROM orders o,
+      jsonb_array_elements(o.items) as item
+      WHERE (item->>'adminId')::uuid = :adminId
+        AND o."createdAt" >= :startDate
+      GROUP BY o."orderStatus"
+    `, {
+      replacements: { adminId, startDate },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    const orders = {
+      total: 0,
+      pending: 0,
+      processing: 0,
+      shipped: 0,
+      delivered: 0,
+      cancelled: 0
+    };
+
+    ordersByStatus.forEach(stat => {
+      const count = parseInt(stat.count);
+      orders[stat.orderStatus] = count;
+      orders.total += count;
+    });
+
+    // 4. Commission Payments
+    const commissionStats = await CommissionPayment.findAll({
+      where: { 
+        adminId,
+        createdAt: { [Op.gte]: startDate }
+      },
+      attributes: [
+        [sequelize.fn('COUNT', sequelize.col('id')), 'total'],
+        [sequelize.fn('SUM', sequelize.col('amount')), 'totalAmount'],
+        [sequelize.fn('SUM', sequelize.literal("CASE WHEN status = 'paid' OR status = 'verified' THEN amount ELSE 0 END")), 'paidAmount'],
+        [sequelize.fn('SUM', sequelize.literal("CASE WHEN status = 'pending_verification' THEN amount ELSE 0 END")), 'pendingAmount']
+      ],
+      raw: true
+    });
+
+    const commissions = {
+      total: parseInt(commissionStats[0]?.total || 0),
+      totalAmount: parseFloat(commissionStats[0]?.totalAmount || 0),
+      paidAmount: parseFloat(commissionStats[0]?.paidAmount || 0),
+      pendingAmount: parseFloat(commissionStats[0]?.pendingAmount || 0)
+    };
+
+    // 5. Daily Sales Trend (last 7-30 days)
+    const dailySales = await sequelize.query(`
+      SELECT 
+        DATE(o."createdAt") as date,
+        COUNT(DISTINCT o.id) as orders,
+        SUM((item->>'price')::numeric * (item->>'quantity')::numeric) as revenue,
+        SUM((item->>'quantity')::integer) as units
+      FROM orders o,
+      jsonb_array_elements(o.items) as item
+      WHERE (item->>'adminId')::uuid = :adminId
+        AND o."orderStatus" = 'delivered'
+        AND o."createdAt" >= :startDate
+      GROUP BY DATE(o."createdAt")
+      ORDER BY date ASC
+    `, {
+      replacements: { adminId, startDate },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    const salesTrend = dailySales.map(day => ({
+      date: new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      orders: parseInt(day.orders),
+      revenue: parseFloat(day.revenue),
+      units: parseInt(day.units)
+    }));
+
+    // 6. Top Products by Revenue
+    const topProducts = await sequelize.query(`
+      SELECT 
+        item->>'productId' as "productId",
+        item->>'name' as name,
+        item->>'image' as image,
+        SUM((item->>'quantity')::integer) as "totalSold",
+        SUM((item->>'price')::numeric * (item->>'quantity')::numeric) as revenue,
+        COUNT(DISTINCT o.id) as "orderCount"
+      FROM orders o,
+      jsonb_array_elements(o.items) as item
+      WHERE (item->>'adminId')::uuid = :adminId
+        AND o."orderStatus" = 'delivered'
+        AND o."createdAt" >= :startDate
+      GROUP BY item->>'productId', item->>'name', item->>'image'
+      ORDER BY revenue DESC
+      LIMIT 10
+    `, {
+      replacements: { adminId, startDate },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    const topProductsData = topProducts.map(p => ({
+      productId: p.productId,
+      name: p.name,
+      image: p.image,
+      totalSold: parseInt(p.totalSold),
+      revenue: parseFloat(p.revenue),
+      orderCount: parseInt(p.orderCount)
+    }));
+
+    // 7. Category Distribution
+    const categoryRevenue = await sequelize.query(`
+      SELECT 
+        p.category,
+        COUNT(DISTINCT p.id) as "productCount",
+        SUM((item->>'quantity')::integer) as "totalSold",
+        SUM((item->>'price')::numeric * (item->>'quantity')::numeric) as revenue
+      FROM orders o,
+      jsonb_array_elements(o.items) as item
+      LEFT JOIN products p ON (item->>'productId')::uuid = p.id
+      WHERE (item->>'adminId')::uuid = :adminId
+        AND o."orderStatus" = 'delivered'
+        AND o."createdAt" >= :startDate
+      GROUP BY p.category
+      ORDER BY revenue DESC
+    `, {
+      replacements: { adminId, startDate },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    const categories = categoryRevenue.map(c => ({
+      name: c.category || 'Uncategorized',
+      productCount: parseInt(c.productCount),
+      totalSold: parseInt(c.totalSold || 0),
+      revenue: parseFloat(c.revenue)
+    }));
+
+    // 8. Payment Methods Distribution
+    const paymentMethods = await sequelize.query(`
+      SELECT 
+        o."paymentMethod",
+        COUNT(*) as count,
+        SUM(o.total) as amount
+      FROM orders o
+      WHERE EXISTS (
+        SELECT 1 FROM jsonb_array_elements(o.items) as item
+        WHERE (item->>'adminId')::uuid = :adminId
+      )
+      AND o."createdAt" >= :startDate
+      GROUP BY o."paymentMethod"
+    `, {
+      replacements: { adminId, startDate },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    const payments = paymentMethods.map(p => ({
+      method: p.paymentMethod,
+      count: parseInt(p.count),
+      amount: parseFloat(p.amount)
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        period: `${period} days`,
+        summary: {
+          revenue,
+          products,
+          orders,
+          commissions
+        },
+        trends: {
+          dailySales: salesTrend
+        },
+        topProducts: topProductsData,
+        categories,
+        paymentMethods: payments
+      }
+    });
+
+  } catch (error) {
+    console.error('Get comprehensive analytics error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching analytics data',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 module.exports = {
   getAdminDashboardStats,
   getAdminProductStats,
@@ -907,5 +1195,6 @@ module.exports = {
   getAdminRevenue,
   getTopProducts,
   getRecentReviews,
-  getSimplifiedDashboard
+  getSimplifiedDashboard,
+  getComprehensiveAnalytics
 };

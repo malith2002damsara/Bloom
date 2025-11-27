@@ -1,5 +1,6 @@
 const CommissionPayment = require('../models/CommissionPayment');
 const Admin = require('../models/Admin');
+const User = require('../models/User');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 // @desc    Get pending commission amount for admin
@@ -238,20 +239,28 @@ const getPaymentHistory = async (req, res) => {
   try {
     const { page = 1, limit = 10, status } = req.query;
 
-    const query = { adminId: req.user.id };
+    const whereClause = { adminId: req.user.id };
     
-    if (status) {
-      query.status = status;
+    if (status && status !== 'all') {
+      whereClause.status = status;
     }
 
-    const payments = await CommissionPayment.find(query)
-      .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
-      .populate('verifiedBy', 'name email')
-      .lean();
+    const offset = (page - 1) * limit;
 
-    const total = await CommissionPayment.count(query);
+    const { count, rows: payments } = await CommissionPayment.findAndCountAll({
+      where: whereClause,
+      order: [['createdAt', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      include: [
+        {
+          model: User,
+          as: 'verifier',
+          attributes: ['id', 'name', 'email'],
+          required: false
+        }
+      ]
+    });
 
     res.status(200).json({
       success: true,
@@ -260,8 +269,8 @@ const getPaymentHistory = async (req, res) => {
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
-          total,
-          pages: Math.ceil(total / limit)
+          total: count,
+          pages: Math.ceil(count / limit)
         }
       }
     });
@@ -280,43 +289,60 @@ const getPaymentHistory = async (req, res) => {
 // @access  Private (Admin only)
 const getCommissionStats = async (req, res) => {
   try {
-    const payments = await CommissionPayment.find({ adminId: req.user.id });
+    const { Op } = require('sequelize');
+    const sequelize = CommissionPayment.sequelize;
 
-    const stats = {
-      totalPaid: 0,
-      pendingVerification: 0,
-      verified: 0,
-      rejected: 0,
-      paymentCount: payments.length,
-      lastPaymentDate: null,
-      averagePayment: 0
-    };
-
-    payments.forEach(payment => {
-      if (payment.status === 'paid' || payment.status === 'verified') {
-        stats.totalPaid += payment.amount;
-      }
-      if (payment.status === 'pending_verification') {
-        stats.pendingVerification += payment.amount;
-      }
-      if (payment.status === 'verified') {
-        stats.verified += payment.amount;
-      }
-      if (payment.status === 'rejected') {
-        stats.rejected += payment.amount;
-      }
+    // Get aggregated stats using Sequelize
+    const [allStats] = await CommissionPayment.findAll({
+      where: { adminId: req.user.id },
+      attributes: [
+        [sequelize.fn('COUNT', sequelize.col('id')), 'paymentCount'],
+        [sequelize.fn('MAX', sequelize.col('createdAt')), 'lastPaymentDate'],
+        [
+          sequelize.fn('SUM', 
+            sequelize.literal(`CASE WHEN status IN ('paid', 'verified') THEN amount ELSE 0 END`)
+          ),
+          'totalPaid'
+        ],
+        [
+          sequelize.fn('SUM', 
+            sequelize.literal(`CASE WHEN status = 'pending_verification' THEN amount ELSE 0 END`)
+          ),
+          'pendingVerification'
+        ],
+        [
+          sequelize.fn('SUM', 
+            sequelize.literal(`CASE WHEN status = 'verified' THEN amount ELSE 0 END`)
+          ),
+          'verified'
+        ],
+        [
+          sequelize.fn('SUM', 
+            sequelize.literal(`CASE WHEN status = 'rejected' THEN amount ELSE 0 END`)
+          ),
+          'rejected'
+        ],
+        [
+          sequelize.fn('COUNT', 
+            sequelize.literal(`CASE WHEN status IN ('paid', 'verified') THEN 1 END`)
+          ),
+          'paidCount'
+        ]
+      ],
+      raw: true
     });
 
-    if (payments.length > 0) {
-      stats.averagePayment = stats.totalPaid / payments.filter(p => 
-        p.status === 'paid' || p.status === 'verified'
-      ).length || 0;
-      
-      const sortedPayments = payments.sort((a, b) => 
-        new Date(b.createdAt) - new Date(a.createdAt)
-      );
-      stats.lastPaymentDate = sortedPayments[0].createdAt;
-    }
+    const stats = {
+      totalPaid: parseFloat(allStats.totalPaid || 0),
+      pendingVerification: parseFloat(allStats.pendingVerification || 0),
+      verified: parseFloat(allStats.verified || 0),
+      rejected: parseFloat(allStats.rejected || 0),
+      paymentCount: parseInt(allStats.paymentCount || 0),
+      lastPaymentDate: allStats.lastPaymentDate,
+      averagePayment: allStats.paidCount > 0 
+        ? parseFloat(allStats.totalPaid || 0) / parseInt(allStats.paidCount)
+        : 0
+    };
 
     res.status(200).json({
       success: true,

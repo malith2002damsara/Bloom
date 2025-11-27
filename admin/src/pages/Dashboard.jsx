@@ -24,7 +24,10 @@ const Dashboard = () => {
     totalProducts: 0,
     pendingOrders: 0,
     lowStock: 0,
-    pendingCommission: 0
+    pendingCommission: 0,
+    commissionPaid: 0,
+    commissionPayments: 0,
+    commissionPendingVerification: 0
   });
 
   const [recentOrders, setRecentOrders] = useState([]);
@@ -60,7 +63,10 @@ const Dashboard = () => {
           totalProducts: stats?.totalProducts || 0,
           pendingOrders: stats?.pendingOrders || 0,
           lowStock: stats?.lowStock || 0,
-          pendingCommission: stats?.pendingCommission || 0
+          pendingCommission: stats?.pendingCommission || 0,
+          commissionPaid: stats?.commissionPaid || 0,
+          commissionPayments: stats?.commissionPayments || 0,
+          commissionPendingVerification: stats?.commissionPendingVerification || 0
         });
         setRecentOrders(recentOrders || []);
         setPromoCode(admin?.promoCode || '');
@@ -212,19 +218,29 @@ const Dashboard = () => {
 
             {/* Commission Payment Card */}
             <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg p-6 text-white">
-              <h3 className="text-lg font-semibold mb-2">Commission Due</h3>
-              <p className="text-sm text-blue-100 mb-4">Total commission pending payment to Bloom</p>
-              <div className="flex items-end justify-between">
-                <div>
-                  <p className="text-4xl font-bold">${(stats.pendingCommission || 0).toLocaleString()}</p>
-                  <p className="text-sm text-blue-100 mt-1">
-                    {(stats.pendingCommission || 0) >= 50000 ? 'Payment required' : `$${(50000 - (stats.pendingCommission || 0)).toLocaleString()} until threshold`}
-                  </p>
+              <h3 className="text-lg font-semibold mb-2">Commission Payments</h3>
+              <p className="text-sm text-blue-100 mb-4">Real-time commission data from database</p>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-blue-100">Pending Due:</span>
+                  <span className="text-2xl font-bold">${(stats.pendingCommission || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-blue-100">Total Paid:</span>
+                  <span className="font-semibold">${(stats.commissionPaid || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-blue-100">Pending Verification:</span>
+                  <span className="font-semibold">${(stats.commissionPendingVerification || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm pt-2 border-t border-blue-400/30">
+                  <span className="text-blue-100">Total Payments:</span>
+                  <span className="font-semibold">{stats.commissionPayments || 0} transactions</span>
                 </div>
                 {(stats.pendingCommission || 0) > 0 && (
                   <button
                     onClick={() => setShowCommissionModal(true)}
-                    className="bg-white text-blue-600 px-6 py-3 rounded-lg hover:bg-blue-50 transition-colors font-semibold"
+                    className="w-full mt-3 bg-white text-blue-600 px-6 py-3 rounded-lg hover:bg-blue-50 transition-colors font-semibold"
                   >
                     Pay Now
                   </button>
@@ -235,7 +251,7 @@ const Dashboard = () => {
 
           {/* Alerts */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6">
+            <div key="pending-orders-alert" className="bg-yellow-50 border border-yellow-200 rounded-xl p-6">
               <div className="flex items-center space-x-3">
                 <AlertCircle className="w-6 h-6 text-yellow-600" />
                 <div>
@@ -245,7 +261,7 @@ const Dashboard = () => {
               </div>
             </div>
             
-            <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+            <div key="low-stock-alert" className="bg-red-50 border border-red-200 rounded-xl p-6">
               <div className="flex items-center space-x-3">
                 <Package className="w-6 h-6 text-red-600" />
                 <div>

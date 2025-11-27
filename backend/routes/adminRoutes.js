@@ -20,7 +20,8 @@ const {
   getAdminRevenue,
   getTopProducts,
   getRecentReviews,
-  getSimplifiedDashboard
+  getSimplifiedDashboard,
+  getComprehensiveAnalytics
 } = require('../controllers/adminAnalyticsController');
 const {
   getAdminProfile: getProfile,
@@ -244,6 +245,7 @@ router.get('/products/stats', auth, adminOnly, getAdminProductStats);
 router.get('/orders/stats', auth, adminOnly, getAdminOrderStats);
 router.get('/revenue', auth, adminOnly, getAdminRevenue);
 router.get('/analytics/top-products', auth, adminOnly, getTopProducts);
+router.get('/analytics/comprehensive', auth, adminOnly, getComprehensiveAnalytics);
 router.get('/recent-reviews', auth, adminOnly, getRecentReviews);
 
 // Commission payment routes
